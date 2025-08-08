@@ -73,11 +73,11 @@ function setTimePeriod(period) {
         case '14d':
             startDate.setDate(endDate.getDate() - 13);
             break;
-        case '28d':
-            startDate.setDate(endDate.getDate() - 27);
+        case '30d':
+            startDate.setDate(endDate.getDate() - 29);
             break;
-        case '5m':
-            startDate.setMonth(endDate.getMonth() - 5);
+        case '90d':
+            startDate.setDate(endDate.getDate() - 89);
             break;
         default:
             startDate.setDate(endDate.getDate() - 6);
@@ -117,10 +117,10 @@ function updatePeriodButtons() {
         document.querySelector('.period-btn[onclick*="7d"]')?.classList.add('active');
     } else if (daysDiff === 14) {
         document.querySelector('.period-btn[onclick*="14d"]')?.classList.add('active');
-    } else if (daysDiff === 28) {
-        document.querySelector('.period-btn[onclick*="28d"]')?.classList.add('active');
-    } else if (daysDiff >= 150 && daysDiff <= 155) {
-        document.querySelector('.period-btn[onclick*="5m"]')?.classList.add('active');
+    } else if (daysDiff === 30) {
+        document.querySelector('.period-btn[onclick*="30d"]')?.classList.add('active');
+    } else if (daysDiff === 90) {
+        document.querySelector('.period-btn[onclick*="90d"]')?.classList.add('active');
     }
 }
 
@@ -186,6 +186,10 @@ async function analyzeOpportunity() {
     const capacity = parseFloat(document.getElementById('capacity').value);
     const efficiency = parseFloat(document.getElementById('efficiency').value) / 100;
     const maxCycles = parseFloat(document.getElementById('maxCycles').value);
+    const dataInterval = parseInt(document.getElementById('dataInterval').value);
+    
+    // Note: dataInterval is captured but not yet implemented in API calls
+    // Future enhancement: Use 30-min data when dataInterval === 30
     
     if (new Date(startDate) > new Date(endDate)) {
         alert('Start date must be before end date');

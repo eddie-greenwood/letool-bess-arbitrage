@@ -676,8 +676,15 @@
                     <div class="time-period-buttons">
                         <button class="period-btn active" onclick="setTimePeriod('7d')">7D</button>
                         <button class="period-btn" onclick="setTimePeriod('14d')">14D</button>
-                        <button class="period-btn" onclick="setTimePeriod('28d')">28D</button>
-                        <button class="period-btn" onclick="setTimePeriod('5m')">5m</button>
+                        <button class="period-btn" onclick="setTimePeriod('30d')">30D</button>
+                        <button class="period-btn" onclick="setTimePeriod('90d')">90D</button>
+                    </div>
+                    <div class="control-group" style="margin-left: 20px;">
+                        <label for="dataInterval">Data Interval</label>
+                        <select id="dataInterval">
+                            <option value="5" selected>5 minutes</option>
+                            <option value="30">30 minutes</option>
+                        </select>
                     </div>
                 </div>
             </div>
