@@ -1,0 +1,11 @@
+name = "letool-api"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[env.production]
+name = "letool-api"
+
+# Bind the worker to a custom route if needed
+# routes = [
+#   { pattern = "api.letool.com/*", zone_name = "letool.com" }
+# ]

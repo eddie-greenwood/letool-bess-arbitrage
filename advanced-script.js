@@ -54,38 +54,70 @@ document.addEventListener('DOMContentLoaded', function() {
  */
 async function testAPIConnection() {
     console.clear();
-    console.log('🌿 GREENWOOD ENERGY - Testing OpenNEM API...');
+    console.log('🌿 GREENWOOD ENERGY - Testing API Connections...');
     
     const testResults = [];
     
+    // Test Worker API
+    try {
+        const workerUrl = window.location.hostname === 'localhost' 
+            ? 'https://letool-api.eddie-37d.workers.dev/api/test'
+            : '/api/test';
+            
+        const resp = await fetch(workerUrl);
+        
+        if (resp.ok) {
+            const data = await resp.json();
+            console.log('✅ Worker API Response:', data);
+            if (data.opennem_reachable) {
+                testResults.push('✅ Worker API: Connected');
+                testResults.push('✅ OpenNEM via Worker: Accessible');
+            } else {
+                testResults.push('✅ Worker API: Connected');
+                testResults.push('⚠️ OpenNEM via Worker: Not accessible');
+            }
+        } else {
+            testResults.push(`⚠️ Worker API returned ${resp.status}`);
+        }
+    } catch (e) {
+        console.error('Worker API failed:', e);
+        testResults.push(`⚠️ Worker API: ${e.message}`);
+    }
+    
+    // Test direct OpenNEM connection
     try {
         const resp = await fetch('https://api.opennem.org.au/networks');
         
         if (resp.ok) {
             const data = await resp.json();
-            console.log('✅ API Response:', data);
-            testResults.push('✅ API is reachable');
+            console.log('✅ Direct API Response:', data);
+            testResults.push('✅ Direct OpenNEM: Accessible (no CORS)');
         } else {
-            testResults.push(`❌ API returned ${resp.status}`);
+            testResults.push(`❌ Direct OpenNEM: HTTP ${resp.status}`);
         }
     } catch (e) {
-        console.error('❌ Connection failed:', e);
-        testResults.push(`❌ Connection failed: ${e.message}`);
+        console.error('❌ Direct connection failed:', e);
+        testResults.push(`❌ Direct OpenNEM: ${e.message.includes('Failed to fetch') ? 'CORS blocked' : e.message}`);
     }
     
+    // Test price endpoint via Worker
     try {
         const today = new Date().toISOString().split('T')[0];
-        const resp = await fetch(`https://api.opennem.org.au/stats/price/NEM/VIC1?date=${today}`);
+        const workerUrl = window.location.hostname === 'localhost' 
+            ? `https://letool-api.eddie-37d.workers.dev/api/price?region=VIC1&date=${today}`
+            : `/api/price?region=VIC1&date=${today}`;
+            
+        const resp = await fetch(workerUrl);
         
         if (resp.ok) {
             const data = await resp.json();
-            console.log('✅ Price data:', data);
-            testResults.push('✅ Price data accessible');
+            console.log('✅ Price data via Worker:', data);
+            testResults.push('✅ Price data via Worker: Success');
         } else {
-            testResults.push(`❌ Price endpoint: ${resp.status}`);
+            testResults.push(`⚠️ Price via Worker: HTTP ${resp.status}`);
         }
     } catch (e) {
-        testResults.push(`❌ Price error: ${e.message}`);
+        testResults.push(`⚠️ Price via Worker: ${e.message}`);
     }
     
     const msg = testResults.join('\n');
@@ -212,13 +244,43 @@ async function analyzeOpportunity() {
 }
 
 /**
- * Fetch day data from OpenNEM API
+ * Fetch day data from OpenNEM API via Worker proxy
  */
 async function fetchDayData(date, region) {
     try {
         console.log(`Fetching data for ${date} in ${region}`);
         
-        const resp = await fetch(`https://api.opennem.org.au/stats/price/NEM/${region}?date=${date}`);
+        // Try to use Worker API first (will be deployed to same domain)
+        const workerUrl = window.location.hostname === 'localhost' 
+            ? `https://letool-api.eddie-37d.workers.dev/api/price?region=${region}&date=${date}`
+            : `/api/price?region=${region}&date=${date}`;
+        
+        try {
+            const resp = await fetch(workerUrl);
+            
+            if (resp.ok) {
+                const data = await resp.json();
+                
+                // Check if it's an error response from Worker
+                if (data.error || data.fallback) {
+                    throw new Error(data.message || 'Worker API error');
+                }
+                
+                let parsedData = parseOpenNEMData(data);
+                
+                if (parsedData && parsedData.length > 0) {
+                    document.getElementById('dataSource').textContent = 
+                        '🟢 Live data from OpenNEM API';
+                    return parsedData;
+                }
+            }
+        } catch (workerError) {
+            console.log('Worker API failed, trying direct:', workerError);
+        }
+        
+        // Fallback to direct API call (may fail due to CORS)
+        const directUrl = `https://api.opennem.org.au/stats/price/NEM/${region}?date=${date}`;
+        const resp = await fetch(directUrl);
         
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         
@@ -227,7 +289,7 @@ async function fetchDayData(date, region) {
         
         if (parsedData && parsedData.length > 0) {
             document.getElementById('dataSource').textContent = 
-                '🟢 Live data from OpenNEM API';
+                '🟢 Live data from OpenNEM API (direct)';
             return parsedData;
         } else {
             document.getElementById('dataSource').textContent = 
@@ -238,7 +300,7 @@ async function fetchDayData(date, region) {
     } catch (error) {
         console.error('Fetch failed:', error);
         document.getElementById('dataSource').textContent = 
-            `📊 Using simulated data (${error.message})`;
+            `📊 Using simulated data (API unavailable)`;
         return simulateMarketData(date, region);
     }
 }
