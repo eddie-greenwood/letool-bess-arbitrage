@@ -1,5 +1,5 @@
 name = "letool-api"
-main = "worker.js"
+main = "worker-opennem.js"
 compatibility_date = "2024-01-01"
 
 [env.production]

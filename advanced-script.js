@@ -60,9 +60,7 @@ async function testAPIConnection() {
     
     // Test Worker API
     try {
-        const workerUrl = window.location.hostname === 'localhost' 
-            ? 'https://letool-api.eddie-37d.workers.dev/api/test'
-            : '/api/test';
+        const workerUrl = 'https://letool-api.eddie-37d.workers.dev/api/test';
             
         const resp = await fetch(workerUrl);
         
@@ -250,10 +248,8 @@ async function fetchDayData(date, region) {
     try {
         console.log(`Fetching data for ${date} in ${region}`);
         
-        // Try to use Worker API first (will be deployed to same domain)
-        const workerUrl = window.location.hostname === 'localhost' 
-            ? `https://letool-api.eddie-37d.workers.dev/api/price?region=${region}&date=${date}`
-            : `/api/price?region=${region}&date=${date}`;
+        // Use Worker API 
+        const workerUrl = `https://letool-api.eddie-37d.workers.dev/api/price/${region}?date=${date}`;
         
         try {
             const resp = await fetch(workerUrl);
@@ -261,11 +257,14 @@ async function fetchDayData(date, region) {
             if (resp.ok) {
                 const data = await resp.json();
                 
-                // Check if it's an error response from Worker
-                if (data.error || data.fallback) {
-                    throw new Error(data.message || 'Worker API error');
+                // Check if we got valid data from Worker
+                if (data.success && data.data) {
+                    document.getElementById('dataSource').textContent = 
+                        data.source === 'opennem' ? '🟢 Live data from OpenNEM API' : '📊 High-quality market simulation';
+                    return data.data; // Return the intervals directly
                 }
                 
+                // If data has the old format, try parsing it
                 let parsedData = parseOpenNEMData(data);
                 
                 if (parsedData && parsedData.length > 0) {
