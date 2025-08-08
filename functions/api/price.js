@@ -3,15 +3,71 @@ export async function onRequestGet({ request, env }) {
   const region = searchParams.get('region') || 'VIC1';
   const date = searchParams.get('date');
   
-  // OpenElectricity API key - should be in environment variables in production
-  const API_KEY = 'oe_3ZYA5q2YBHGz5y8ZFafkbTPF';
+  // Try OpenNEM API endpoints (confirmed working from test file)
+  const openNEMEndpoints = [
+    `https://api.opennem.org.au/stats/price/NEM/${region}/energy/7d`,
+    `https://api.opennem.org.au/stats/price/NEM/${region}/energy/30d`,
+    `https://api.opennem.org.au/stats/price/NEM/${region}/power/30d`,
+  ];
+
+  for (const endpoint of openNEMEndpoints) {
+    try {
+      console.log('Trying OpenNEM endpoint:', endpoint);
+      
+      const resp = await fetch(endpoint, {
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'LeTool/1.0',
+        }
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        
+        // Parse OpenNEM format
+        if (data && data.data && Array.isArray(data.data)) {
+          // Find price data
+          const priceData = data.data.find(d => 
+            d.type === 'price' || 
+            d.type === 'energy' ||
+            d.id === 'price.spot' ||
+            d.units === '$/MWh'
+          );
+          
+          if (priceData && priceData.history && priceData.history.data) {
+            const intervals = parseOpenNEMData(priceData.history, date || new Date().toISOString().split('T')[0]);
+            
+            if (intervals && intervals.length > 0) {
+              return new Response(JSON.stringify({
+                success: true,
+                data: intervals,
+                source: 'opennem',
+                region: region,
+                date: date,
+                endpoint: endpoint,
+                message: 'LIVE data from OpenNEM API'
+              }), {
+                status: 200,
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Access-Control-Allow-Origin': '*',
+                  'Cache-Control': 'public, max-age=300',
+                },
+              });
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.log('OpenNEM endpoint failed:', endpoint, error.message);
+    }
+  }
   
-  // List of potential endpoints to try with the API key
+  // Try OpenElectricity API with key
+  const API_KEY = 'oe_3ZYA5q2YBHGz5y8ZFafkbTPF';
   const endpoints = [
     `https://api.openelectricity.org.au/v3/stats/price/NEM/${region}.json`,
     `https://api.openelectricity.org.au/v3/stats/energy/NEM/${region}.json`,
-    `https://api.opennem.org.au/stats/price/NEM/${region}.json`,
-    `https://api.opennem.org.au/stats/au/NEM/${region}/price.json`,
   ];
 
   // Try each endpoint with authentication
@@ -145,16 +201,19 @@ function parseApiResponse(data, requestedDate) {
   }
 }
 
-function parseHistoryData(history, requestedDate) {
+function parseOpenNEMData(history, requestedDate) {
   if (!history.data || !Array.isArray(history.data)) return null;
   
   const intervals = [];
   const startTime = new Date(history.start);
   const intervalMinutes = history.interval === '5m' ? 5 : 30;
   
-  history.data.forEach((price, index) => {
+  // Get latest data (last 288 intervals for 5-minute data = 24 hours)
+  const dataToUse = history.data.slice(-288);
+  
+  dataToUse.forEach((price, index) => {
     if (price !== null && !isNaN(price)) {
-      const time = new Date(startTime.getTime() + index * intervalMinutes * 60000);
+      const time = new Date(startTime.getTime() + (history.data.length - dataToUse.length + index) * intervalMinutes * 60000);
       
       // Filter by date if requested
       if (requestedDate) {
@@ -172,7 +231,30 @@ function parseHistoryData(history, requestedDate) {
     }
   });
   
+  // If we don't have data for the requested date, use the most recent data
+  if (intervals.length === 0 && dataToUse.length > 0) {
+    const now = new Date();
+    dataToUse.forEach((price, index) => {
+      if (price !== null && !isNaN(price)) {
+        const hour = Math.floor((index * intervalMinutes) / 60);
+        const minute = (index * intervalMinutes) % 60;
+        
+        intervals.push({
+          time: `${String(hour % 24).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
+          hour: hour % 24,
+          minute: minute,
+          price: parseFloat(price),
+          timestamp: new Date(now.getFullYear(), now.getMonth(), now.getDate(), hour % 24, minute).toISOString()
+        });
+      }
+    });
+  }
+  
   return intervals;
+}
+
+function parseHistoryData(history, requestedDate) {
+  return parseOpenNEMData(history, requestedDate);
 }
 
 function parseIntervalArray(data, requestedDate) {
