@@ -314,10 +314,16 @@ async function fetchDayData(date, region) {
                 const data = await resp.json();
                 
                 // Check if we got valid data from Worker
-                if (data.success && data.data) {
+                if (data.success && data.data && data.data.length > 0) {
                     document.getElementById('dataSource').textContent = 
-                        data.source === 'opennem' ? 'Live data from OpenNEM API' : 'High-quality market simulation';
+                        data.source === 'opennem' ? '🟢 LIVE data from OpenNEM API' : 
+                        data.source === 'opennem-alt' ? '🟢 LIVE data from OpenNEM (alt)' :
+                        '⚠️ SIMULATED data (API unavailable)';
+                    document.getElementById('dataSource').style.display = 'block';
                     return data.data; // Return the intervals directly
+                } else if (!data.success) {
+                    console.error('API error:', data.error);
+                    throw new Error(data.error || 'API failed');
                 }
                 
                 // If data has the old format, try parsing it

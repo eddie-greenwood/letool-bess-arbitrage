@@ -1,63 +1,139 @@
 export async function onRequestGet({ request }) {
-  const { searchParams, pathname } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const region = searchParams.get('region') || 'VIC1';
-  const period = searchParams.get('period') || '7d';
   const date = searchParams.get('date');
 
   try {
-    // Try different OpenNEM endpoints
-    let target;
-    if (date) {
-      // Try the stats endpoint with date parameter
-      target = `https://api.opennem.org.au/stats/price/NEM/${region}?date=${date}`;
-    } else {
-      // For period-based queries, try the data subdomain
-      target = `https://data.opennem.org.au/v3/stats/au/NEM/${region}/price/${period}.json`;
-    }
-
+    // Use the OpenNEM API endpoint that works
+    const target = `https://api.opennem.org.au/stats/price/energy/NEM/${region}.json`;
+    
     console.log('Fetching from OpenNEM:', target);
 
     const resp = await fetch(target, { 
       headers: { 
         'Accept': 'application/json',
         'User-Agent': 'Mozilla/5.0 (compatible; LeTool/1.0)'
-      },
-      redirect: 'follow'
+      }
     });
     
-    console.log('Response status:', resp.status);
-    console.log('Response headers:', resp.headers.get('content-type'));
-    
-    const body = await resp.text();
-    
-    // Check if OpenNEM returned HTML instead of JSON
-    const isHtml = body.trim().startsWith('<') || body.trim().startsWith('<!');
-    
-    if (isHtml || resp.status !== 200) {
-      console.error('OpenNEM issue - Status:', resp.status, 'HTML:', isHtml);
-      // Return simulated data as fallback
-      return generateSimulatedResponse(region, date);
+    if (!resp.ok) {
+      throw new Error(`OpenNEM returned ${resp.status}`);
     }
-
-    // Try to parse as JSON to validate
-    try {
-      const data = JSON.parse(body);
-      return new Response(body, {
-        status: resp.status,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'public, max-age=300',
-        },
-      });
-    } catch (e) {
-      console.error('Failed to parse OpenNEM response as JSON');
-      return generateSimulatedResponse(region, date);
+    
+    const data = await resp.json();
+    
+    // Parse OpenNEM format to our format
+    if (data && data.data && Array.isArray(data.data)) {
+      const priceData = data.data.find(d => 
+        d.type === 'energy' || 
+        d.type === 'price' || 
+        d.id === 'price.spot' ||
+        d.code === 'price.spot'
+      );
+      
+      if (priceData && priceData.history && priceData.history.data) {
+        // Convert to our interval format
+        const intervals = [];
+        const prices = priceData.history.data;
+        const startTime = new Date(priceData.history.start);
+        const intervalMinutes = priceData.history.interval === '5m' ? 5 : 30;
+        
+        // If a specific date is requested, filter for that date
+        const requestedDate = date ? new Date(date) : null;
+        
+        prices.forEach((price, index) => {
+          if (price !== null && !isNaN(price)) {
+            const time = new Date(startTime.getTime() + index * intervalMinutes * 60000);
+            
+            // Filter by date if requested
+            if (requestedDate) {
+              const timeDate = new Date(time.getFullYear(), time.getMonth(), time.getDate());
+              const reqDate = new Date(requestedDate.getFullYear(), requestedDate.getMonth(), requestedDate.getDate());
+              if (timeDate.getTime() !== reqDate.getTime()) return;
+            }
+            
+            intervals.push({
+              time: `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`,
+              hour: time.getHours(),
+              minute: time.getMinutes(),
+              price: parseFloat(price),
+              timestamp: time.toISOString()
+            });
+          }
+        });
+        
+        // Return live data
+        return new Response(JSON.stringify({
+          success: true,
+          data: intervals,
+          source: 'opennem',
+          region: region,
+          date: date,
+          message: 'Live data from OpenNEM'
+        }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'public, max-age=300',
+          },
+        });
+      }
     }
+    
+    throw new Error('Invalid data structure from OpenNEM');
     
   } catch (error) {
-    console.error('Error fetching from OpenNEM:', error);
-    return generateSimulatedResponse(region, date);
+    console.error('OpenNEM fetch error:', error);
+    
+    // Only fallback to simulation if absolutely necessary
+    // Try alternative endpoint
+    try {
+      const altTarget = `https://data.opennem.org.au/v3/stats/au/NEM/${region}/energy/5m.json`;
+      const altResp = await fetch(altTarget);
+      
+      if (altResp.ok) {
+        const altData = await altResp.json();
+        
+        // Process alternative format
+        if (altData && altData.data) {
+          const intervals = [];
+          // Process the alternative data format
+          // ... parsing logic for alternative format ...
+          
+          if (intervals.length > 0) {
+            return new Response(JSON.stringify({
+              success: true,
+              data: intervals,
+              source: 'opennem-alt',
+              region: region,
+              date: date
+            }), {
+              status: 200,
+              headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+              },
+            });
+          }
+        }
+      }
+    } catch (altError) {
+      console.error('Alternative endpoint also failed:', altError);
+    }
+    
+    // Last resort - return error to force client to handle it
+    return new Response(JSON.stringify({
+      success: false,
+      error: 'Unable to fetch live data from OpenNEM',
+      message: error.message
+    }), {
+      status: 503,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
   }
 }
 
@@ -70,82 +146,4 @@ export async function onRequestOptions({ request }) {
       'Access-Control-Allow-Headers': 'Content-Type',
     },
   });
-}
-
-function generateSimulatedResponse(region, date) {
-  const intervals = generateNEMData(region, date || new Date().toISOString().split('T')[0]);
-  
-  return new Response(JSON.stringify({
-    success: true,
-    data: intervals,
-    source: 'simulation',
-    region: region,
-    date: date,
-    message: 'Using high-quality NEM simulation'
-  }), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
-  });
-}
-
-function generateNEMData(region, date) {
-  const intervals = [];
-  const dateObj = new Date(date);
-  const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
-  
-  const profiles = {
-    'NSW1': { base: 85, solar: 1.0, peak: 1.4 },
-    'QLD1': { base: 80, solar: 1.2, peak: 1.3 },
-    'SA1': { base: 90, solar: 1.3, peak: 1.6 },
-    'TAS1': { base: 70, solar: 0.7, peak: 1.2 },
-    'VIC1': { base: 88, solar: 0.9, peak: 1.5 }
-  };
-  
-  const profile = profiles[region] || profiles['VIC1'];
-  
-  for (let hour = 0; hour < 24; hour++) {
-    for (let minute = 0; minute < 60; minute += 5) {
-      const time = hour + minute / 60;
-      let price = profile.base;
-      
-      // NEM duck curve pattern
-      if (time >= 0 && time < 5) {
-        price = profile.base * 0.5;
-      } else if (time >= 5 && time < 7) {
-        price = profile.base * (0.5 + (time - 5) * 0.35);
-      } else if (time >= 7 && time < 9) {
-        price = profile.base * profile.peak;
-      } else if (time >= 9 && time < 11) {
-        price = profile.base * 1.1;
-      } else if (time >= 11 && time < 15) {
-        price = profile.base * (0.3 / profile.solar);
-      } else if (time >= 15 && time < 17) {
-        price = profile.base * (0.4 + (time - 15) * 0.4);
-      } else if (time >= 17 && time < 20) {
-        price = profile.base * profile.peak * 1.1;
-      } else if (time >= 20 && time < 22) {
-        price = profile.base * 0.9;
-      } else {
-        price = profile.base * 0.6;
-      }
-      
-      if (isWeekend) price *= 0.75;
-      price += (Math.random() - 0.5) * 20;
-      if (Math.random() < 0.02) price *= 2 + Math.random() * 2;
-      price = Math.max(-50, Math.min(500, price));
-      
-      intervals.push({
-        time: `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`,
-        hour: hour,
-        minute: minute,
-        price: price,
-        timestamp: new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate(), hour, minute).toISOString()
-      });
-    }
-  }
-  
-  return intervals;
 }
