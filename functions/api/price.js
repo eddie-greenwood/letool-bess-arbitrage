@@ -3,16 +3,23 @@ export async function onRequestGet({ request, env }) {
   const region = searchParams.get('region') || 'VIC1';
   const date = searchParams.get('date');
   
-  // Try OpenNEM API endpoints (confirmed working from test file)
+  // Try using a CORS proxy for OpenNEM (since it works in browser but not server-side)
+  const corsProxies = [
+    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  ];
+  
+  // OpenNEM endpoints that work in browser
   const openNEMEndpoints = [
-    `https://api.opennem.org.au/stats/price/NEM/${region}/energy/7d`,
-    `https://api.opennem.org.au/stats/price/NEM/${region}/energy/30d`,
-    `https://api.opennem.org.au/stats/price/NEM/${region}/power/30d`,
+    `https://api.opennem.org.au/stats/au/NEM/${region}/power/7d.json`,
+    `https://api.opennem.org.au/stats/au/NEM/${region}/energy/7d.json`,
   ];
 
+  // Try each endpoint with each proxy
   for (const endpoint of openNEMEndpoints) {
+    // First try direct
     try {
-      console.log('Trying OpenNEM endpoint:', endpoint);
+      console.log('Trying OpenNEM direct:', endpoint);
       
       const resp = await fetch(endpoint, {
         headers: {
@@ -59,7 +66,59 @@ export async function onRequestGet({ request, env }) {
         }
       }
     } catch (error) {
-      console.log('OpenNEM endpoint failed:', endpoint, error.message);
+      console.log('OpenNEM direct failed:', endpoint, error.message);
+    }
+    
+    // Try with CORS proxies
+    for (const proxyFn of corsProxies) {
+      try {
+        const proxyUrl = proxyFn(endpoint);
+        console.log('Trying via proxy:', proxyUrl);
+        
+        const resp = await fetch(proxyUrl, {
+          headers: {
+            'Accept': 'application/json',
+          }
+        });
+        
+        if (resp.ok) {
+          const data = await resp.json();
+          
+          if (data && data.data && Array.isArray(data.data)) {
+            const priceData = data.data.find(d => 
+              d.type === 'price' || 
+              d.type === 'energy' ||
+              d.id === 'price.spot' ||
+              d.units === '$/MWh'
+            );
+            
+            if (priceData && priceData.history && priceData.history.data) {
+              const intervals = parseOpenNEMData(priceData.history, date || new Date().toISOString().split('T')[0]);
+              
+              if (intervals && intervals.length > 0) {
+                return new Response(JSON.stringify({
+                  success: true,
+                  data: intervals,
+                  source: 'opennem-proxy',
+                  region: region,
+                  date: date,
+                  endpoint: endpoint,
+                  message: 'LIVE data from OpenNEM API (via proxy)'
+                }), {
+                  status: 200,
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': '*',
+                    'Cache-Control': 'public, max-age=300',
+                  },
+                });
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.log('Proxy failed:', error.message);
+      }
     }
   }
   
