@@ -58,21 +58,18 @@ async function testAPIConnection() {
     
     const testResults = [];
     
-    // Test Worker API
+    // Test Pages Functions API
     try {
-        const workerUrl = 'https://letool-api.eddie-37d.workers.dev/api/test';
+        const apiUrl = '/api/test';
             
-        const resp = await fetch(workerUrl);
+        const resp = await fetch(apiUrl);
         
         if (resp.ok) {
             const data = await resp.json();
-            console.log('✅ Worker API Response:', data);
-            if (data.opennem_reachable) {
-                testResults.push('✅ Worker API: Connected');
-                testResults.push('✅ OpenNEM via Worker: Accessible');
-            } else {
-                testResults.push('✅ Worker API: Connected');
-                testResults.push('⚠️ OpenNEM via Worker: Not accessible');
+            console.log('✅ API Response:', data);
+            testResults.push('✅ API: Connected');
+            if (data.type === 'Cloudflare Pages Function') {
+                testResults.push('✅ Pages Functions working');
             }
         } else {
             testResults.push(`⚠️ Worker API returned ${resp.status}`);
@@ -98,14 +95,12 @@ async function testAPIConnection() {
         testResults.push(`❌ Direct OpenNEM: ${e.message.includes('Failed to fetch') ? 'CORS blocked' : e.message}`);
     }
     
-    // Test price endpoint via Worker
+    // Test price endpoint via Pages Functions
     try {
         const today = new Date().toISOString().split('T')[0];
-        const workerUrl = window.location.hostname === 'localhost' 
-            ? `https://letool-api.eddie-37d.workers.dev/api/price?region=VIC1&date=${today}`
-            : `/api/price?region=VIC1&date=${today}`;
+        const apiUrl = `/api/price?region=VIC1&date=${today}`;
             
-        const resp = await fetch(workerUrl);
+        const resp = await fetch(apiUrl);
         
         if (resp.ok) {
             const data = await resp.json();
@@ -242,17 +237,17 @@ async function analyzeOpportunity() {
 }
 
 /**
- * Fetch day data from OpenNEM API via Worker proxy
+ * Fetch day data from OpenNEM API via Pages Functions
  */
 async function fetchDayData(date, region) {
     try {
         console.log(`Fetching data for ${date} in ${region}`);
         
-        // Use Worker API 
-        const workerUrl = `https://letool-api.eddie-37d.workers.dev/api/price/${region}?date=${date}`;
+        // Use Pages Functions API endpoint
+        const apiUrl = `/api/price?region=${region}&date=${date}`;
         
         try {
-            const resp = await fetch(workerUrl);
+            const resp = await fetch(apiUrl);
             
             if (resp.ok) {
                 const data = await resp.json();
