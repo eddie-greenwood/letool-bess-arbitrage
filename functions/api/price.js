@@ -5,6 +5,7 @@ export async function onRequestGet({ request, env }) {
   
   // Use environment variable for API key (set in Cloudflare dashboard)
   const API_KEY = env?.OE_API_KEY || 'oe_3ZYA5q2YBHGz5y8ZFafkbTPF';
+  console.log('API Key available:', !!API_KEY, 'From env:', !!env?.OE_API_KEY);
   
   // 1) Try OpenElectricity v4 API with authentication
   try {
@@ -131,7 +132,12 @@ export async function onRequestGet({ request, env }) {
     region: region,
     date: date,
     message: 'Using NEM market simulation',
-    note: 'API endpoints not returning valid data - check API documentation'
+    note: 'API endpoints not returning valid data - check API documentation',
+    debug: {
+      hasEnv: !!env,
+      hasApiKey: !!API_KEY,
+      fromEnv: !!env?.OE_API_KEY
+    }
   }), {
     status: 200,
     headers: {
