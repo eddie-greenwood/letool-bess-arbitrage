@@ -15,7 +15,8 @@ function optimiseBESS_DP({
   soc0 = 0.5,             // initial SoC as fraction of capacity (0..1)
   socT = 0.5,             // terminal SoC fraction (use soc0 for neutrality)
   socSteps = 201,         // number of discrete SoC levels
-  throughputCost = 0.0    // $ per MWh of battery-side throughput (degradation)
+  throughputCost = 0.0,   // $ per MWh of battery-side throughput (degradation)
+  maxCycles = null        // maximum cycles per day constraint
 }) {
   const T = prices.length;
   const E = capacityMWh;
@@ -92,6 +93,7 @@ function optimiseBESS_DP({
   let throughput = 0.0;
   let energyCharged = 0.0;
   let energyDischarged = 0.0;
+  let cycleCount = 0.0;
 
   for (let t = 0; t < T; t++) {
     const i = idxFromSoC(socSeries[t]);

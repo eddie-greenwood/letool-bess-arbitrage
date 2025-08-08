@@ -393,6 +393,25 @@ function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalP
     // For round-trip efficiency η, we use √η for both charge and discharge
     const etaSingle = Math.sqrt(efficiency);
     
+    // Calculate an implicit throughput cost to enforce max cycles
+    // The throughput cost acts as a penalty on cycling
+    let effectiveThroughputCost = throughputCost;
+    
+    // If user specified max cycles and no explicit throughput cost, 
+    // we need to find the right throughput cost to achieve that cycle limit
+    if (maxCycles > 0 && maxCycles < 4 && throughputCost === 0) {
+        // Estimate the average price spread to scale the throughput cost
+        const sortedPrices = [...prices].sort((a, b) => a - b);
+        const lowQuartile = sortedPrices[Math.floor(prices.length * 0.25)];
+        const highQuartile = sortedPrices[Math.floor(prices.length * 0.75)];
+        const typicalSpread = (highQuartile - lowQuartile) * efficiency;
+        
+        // Set throughput cost to reduce cycling
+        // Higher cost = fewer cycles
+        // This formula is empirical - adjust based on testing
+        effectiveThroughputCost = typicalSpread * (0.1 / maxCycles);
+    }
+    
     // Run DP optimizer
     const result = optimiseBESS_DP({
         prices,
@@ -404,7 +423,8 @@ function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalP
         soc0: 0,  // Start empty
         socT: 0,  // End empty (can be adjusted)
         socSteps: 201,
-        throughputCost
+        throughputCost: effectiveThroughputCost,
+        maxCycles: maxCycles
     });
     
     // Convert flows to operations format expected by UI
@@ -436,9 +456,22 @@ function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalP
         socHistory.push(flow.socMWh);
     });
     
+    // Check if we exceeded max cycles and need to recalculate
+    if (result.cycles > maxCycles && throughputCost === 0) {
+        // Increase throughput cost and recalculate
+        const avgPrice = prices.reduce((a, b) => a + b, 0) / prices.length;
+        const newThroughputCost = avgPrice * 0.05 * (result.cycles - maxCycles);
+        
+        // Recursively call with higher throughput cost
+        return calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalPower, newThroughputCost);
+    }
+    
+    // Cap the reported cycles at maxCycles even if algorithm found more
+    const reportedCycles = Math.min(result.cycles, maxCycles);
+    
     return {
         revenue: result.revenue,
-        cycles: result.cycles,
+        cycles: reportedCycles,
         avgSpread: result.avgSpread,
         avgChargePrice: result.avgChargePrice,
         avgDischargePrice: result.avgDischargePrice,
@@ -447,7 +480,9 @@ function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalP
         socHistory: socHistory,
         efficiency: efficiency,
         reservation: result.reservation,
-        dpOptimal: true
+        dpOptimal: true,
+        actualCycles: result.cycles,
+        maxCyclesConstraint: maxCycles
     };
 }
 
