@@ -1,0 +1,18 @@
+{
+  "name": "bess-arbitrage-calculator",
+  "version": "1.0.0",
+  "description": "BESS Arbitrage Calculator using OpenNEM data",
+  "scripts": {
+    "dev": "python3 -m http.server 8000",
+    "build": "echo 'No build required for static site'"
+  },
+  "keywords": [
+    "bess",
+    "battery",
+    "energy",
+    "arbitrage",
+    "opennem"
+  ],
+  "author": "",
+  "license": "MIT"
+}
