@@ -39,18 +39,90 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('BESS Opportunity Dashboard v1.0');
     
     // Set default dates (last 7 days)
-    const today = new Date();
-    const weekAgo = new Date(today);
-    weekAgo.setDate(weekAgo.getDate() - 6);
+    setTimePeriod('7d');
     
-    document.getElementById('startDate').value = weekAgo.toISOString().split('T')[0];
-    document.getElementById('endDate').value = today.toISOString().split('T')[0];
+    // Add listeners for manual date changes
+    document.getElementById('startDate').addEventListener('change', updatePeriodButtons);
+    document.getElementById('endDate').addEventListener('change', updatePeriodButtons);
     
     // Check API status quietly
     checkAPIStatus();
     
     console.log('Ready to analyze BESS opportunities');
 });
+
+/**
+ * Set time period for analysis
+ */
+function setTimePeriod(period) {
+    const endDate = new Date();
+    let startDate = new Date();
+    
+    // Remove active class from all buttons
+    document.querySelectorAll('.period-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Add active class to clicked button
+    event?.target?.classList.add('active');
+    
+    switch(period) {
+        case '7d':
+            startDate.setDate(endDate.getDate() - 6);
+            break;
+        case '14d':
+            startDate.setDate(endDate.getDate() - 13);
+            break;
+        case '28d':
+            startDate.setDate(endDate.getDate() - 27);
+            break;
+        case '5m':
+            startDate.setMonth(endDate.getMonth() - 5);
+            break;
+        default:
+            startDate.setDate(endDate.getDate() - 6);
+    }
+    
+    // Set the date inputs
+    document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
+    document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
+    
+    // If this is the initial load, don't set active class (it's already set in HTML)
+    if (!event) {
+        document.querySelector('.period-btn').classList.add('active');
+    }
+}
+
+// Make function globally available
+window.setTimePeriod = setTimePeriod;
+
+/**
+ * Update period buttons based on current date selection
+ */
+function updatePeriodButtons() {
+    const startDate = new Date(document.getElementById('startDate').value);
+    const endDate = new Date(document.getElementById('endDate').value);
+    
+    if (isNaN(startDate) || isNaN(endDate)) return;
+    
+    const daysDiff = Math.round((endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+    
+    // Remove active class from all buttons
+    document.querySelectorAll('.period-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    // Check if it matches any preset period
+    if (daysDiff === 7) {
+        document.querySelector('.period-btn[onclick*="7d"]')?.classList.add('active');
+    } else if (daysDiff === 14) {
+        document.querySelector('.period-btn[onclick*="14d"]')?.classList.add('active');
+    } else if (daysDiff === 28) {
+        document.querySelector('.period-btn[onclick*="28d"]')?.classList.add('active');
+    } else if (daysDiff >= 150 && daysDiff <= 155) {
+        document.querySelector('.period-btn[onclick*="5m"]')?.classList.add('active');
+    }
+}
 
 /**
  * Check API status and update indicator

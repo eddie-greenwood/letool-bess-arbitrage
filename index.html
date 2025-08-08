@@ -594,6 +594,40 @@
         .footer a:hover {
             text-decoration: underline;
         }
+
+        .time-period-buttons {
+            display: flex;
+            gap: 8px;
+            padding: 4px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 12px;
+            border: 1px solid var(--card-border);
+        }
+
+        .period-btn {
+            padding: 8px 16px;
+            background: transparent;
+            color: var(--text-secondary);
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 50px;
+        }
+
+        .period-btn:hover {
+            background: rgba(0, 232, 126, 0.1);
+            color: var(--text-primary);
+        }
+
+        .period-btn.active {
+            background: var(--greenwood-primary);
+            color: var(--greenwood-dark);
+            font-weight: 600;
+            box-shadow: 0 2px 8px rgba(0, 232, 126, 0.3);
+        }
     </style>
 </head>
 <body>
@@ -636,6 +670,14 @@
                     <div class="control-group">
                         <label for="endDate">End Date</label>
                         <input type="date" id="endDate" value="">
+                    </div>
+                </div>
+                <div class="control-row" style="margin-top: 15px;">
+                    <div class="time-period-buttons">
+                        <button class="period-btn active" onclick="setTimePeriod('7d')">7D</button>
+                        <button class="period-btn" onclick="setTimePeriod('14d')">14D</button>
+                        <button class="period-btn" onclick="setTimePeriod('28d')">28D</button>
+                        <button class="period-btn" onclick="setTimePeriod('5m')">5m</button>
                     </div>
                 </div>
             </div>
