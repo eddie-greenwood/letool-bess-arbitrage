@@ -751,29 +751,47 @@ function updatePriceChart(dayResult) {
     
     // Add reservation price bands if using DP optimization
     if (dayResult.dpOptimal && dayResult.reservation) {
-        datasets.push({
-            label: 'Charge Threshold',
-            data: dayResult.operations.map(op => op.reservationCharge),
-            borderColor: '#4A90E2',
-            backgroundColor: 'transparent',
-            borderWidth: 1,
-            borderDash: [5, 5],
-            pointRadius: 0,
-            tension: 0.1,
-            order: 2
+        // Filter out invalid reservation prices
+        const chargeThresholds = dayResult.operations.map(op => {
+            const val = op.reservationCharge;
+            return (val && !isNaN(val) && val > -1000 && val < 1000) ? val : null;
         });
         
-        datasets.push({
-            label: 'Discharge Threshold',
-            data: dayResult.operations.map(op => op.reservationDischarge),
-            borderColor: '#E94B3C',
-            backgroundColor: 'transparent',
-            borderWidth: 1,
-            borderDash: [5, 5],
-            pointRadius: 0,
-            tension: 0.1,
-            order: 2
+        const dischargeThresholds = dayResult.operations.map(op => {
+            const val = op.reservationDischarge;
+            return (val && !isNaN(val) && val > -1000 && val < 1000) ? val : null;
         });
+        
+        // Only add if we have valid data
+        if (chargeThresholds.some(v => v !== null)) {
+            datasets.push({
+                label: 'Charge Threshold',
+                data: chargeThresholds,
+                borderColor: '#4A90E2',
+                backgroundColor: 'transparent',
+                borderWidth: 1,
+                borderDash: [5, 5],
+                pointRadius: 0,
+                tension: 0.1,
+                order: 2,
+                spanGaps: true
+            });
+        }
+        
+        if (dischargeThresholds.some(v => v !== null)) {
+            datasets.push({
+                label: 'Discharge Threshold',
+                data: dischargeThresholds,
+                borderColor: '#E94B3C',
+                backgroundColor: 'transparent',
+                borderWidth: 1,
+                borderDash: [5, 5],
+                pointRadius: 0,
+                tension: 0.1,
+                order: 2,
+                spanGaps: true
+            });
+        }
     }
     
     priceChart = new Chart(ctx, {
@@ -815,6 +833,13 @@ function updatePriceChart(dayResult) {
                     title: {
                         display: true,
                         text: 'Price ($/MWh)'
+                    },
+                    beginAtZero: false,
+                    suggestedMin: 0,
+                    ticks: {
+                        callback: function(value) {
+                            return '$' + value.toFixed(0);
+                        }
                     }
                 }
             }
@@ -825,19 +850,27 @@ function updatePriceChart(dayResult) {
                 const xAxis = chart.scales.x;
                 const yAxis = chart.scales.y;
                 
+                // Save context state
+                ctx.save();
+                
                 dayResult.operations.forEach((op, index) => {
-                    if (op.operation === 'charge') {
+                    if (op.operation === 'charge' || op.operation === 'discharge') {
                         const x = xAxis.getPixelForValue(index);
-                        const width = xAxis.getPixelForValue(1) - xAxis.getPixelForValue(0);
-                        ctx.fillStyle = `${GREENWOOD_COLORS.primary}30`;
-                        ctx.fillRect(x - width/2, yAxis.top, width, yAxis.bottom - yAxis.top);
-                    } else if (op.operation === 'discharge') {
-                        const x = xAxis.getPixelForValue(index);
-                        const width = xAxis.getPixelForValue(1) - xAxis.getPixelForValue(0);
-                        ctx.fillStyle = `${GREENWOOD_COLORS.danger}30`;
+                        const width = Math.max(1, (xAxis.width / dayResult.operations.length));
+                        
+                        if (op.operation === 'charge') {
+                            ctx.fillStyle = 'rgba(0, 232, 126, 0.2)';
+                        } else {
+                            ctx.fillStyle = 'rgba(255, 107, 107, 0.2)';
+                        }
+                        
+                        // Draw from top to bottom of chart area
                         ctx.fillRect(x - width/2, yAxis.top, width, yAxis.bottom - yAxis.top);
                     }
                 });
+                
+                // Restore context state
+                ctx.restore();
             }
         }]
     });
