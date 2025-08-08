@@ -149,13 +149,30 @@ async function analyzeOpportunity() {
             
             const dayData = await fetchDayData(dateStr, region);
             
-            const dayResult = calculateMultiCycleArbitrage(
-                dayData, 
-                efficiency, 
-                maxCycles, 
-                capacity * numUnits,
-                power * numUnits
-            );
+            const optimizationMode = document.getElementById('optimizationMode').value;
+            const throughputCost = parseFloat(document.getElementById('throughputCost').value) || 0;
+            
+            let dayResult;
+            if (optimizationMode === 'dp') {
+                // Use Dynamic Programming optimizer
+                dayResult = calculateDPArbitrage(
+                    dayData,
+                    efficiency,
+                    maxCycles,
+                    capacity * numUnits,
+                    power * numUnits,
+                    throughputCost
+                );
+            } else {
+                // Use heuristic method
+                dayResult = calculateMultiCycleArbitrage(
+                    dayData, 
+                    efficiency, 
+                    maxCycles, 
+                    capacity * numUnits,
+                    power * numUnits
+                );
+            }
             
             dayResult.date = dateStr;
             dailyResults.push(dayResult);
@@ -363,6 +380,75 @@ function simulateMarketData(date, region) {
     }
     
     return intervals;
+}
+
+/**
+ * Calculate arbitrage using Dynamic Programming optimizer
+ */
+function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalPower, throughputCost = 0) {
+    // Extract prices array
+    const prices = data.map(d => d.price);
+    
+    // Split efficiency into charge and discharge components
+    // For round-trip efficiency η, we use √η for both charge and discharge
+    const etaSingle = Math.sqrt(efficiency);
+    
+    // Run DP optimizer
+    const result = optimiseBESS_DP({
+        prices,
+        dtHours: 5/60,
+        capacityMWh: totalCapacity,
+        powerMW: totalPower,
+        etaC: etaSingle,
+        etaD: etaSingle,
+        soc0: 0,  // Start empty
+        socT: 0,  // End empty (can be adjusted)
+        socSteps: 201,
+        throughputCost
+    });
+    
+    // Convert flows to operations format expected by UI
+    const operations = [];
+    const socHistory = [];
+    
+    result.flows.forEach((flow, idx) => {
+        const interval = data[idx];
+        let operation = 'neutral';
+        let powerFlow = 0;
+        
+        if (flow.op === 'charge') {
+            operation = 'charge';
+            powerFlow = -flow.buyMWh / (5/60);  // Convert to MW
+        } else if (flow.op === 'discharge') {
+            operation = 'discharge';
+            powerFlow = flow.sellMWh / (5/60);  // Convert to MW
+        }
+        
+        operations.push({
+            ...interval,
+            soc: flow.socMWh,
+            powerFlow: powerFlow,
+            operation: operation,
+            reservationCharge: result.reservation.charge[idx],
+            reservationDischarge: result.reservation.discharge[idx]
+        });
+        
+        socHistory.push(flow.socMWh);
+    });
+    
+    return {
+        revenue: result.revenue,
+        cycles: result.cycles,
+        avgSpread: result.avgSpread,
+        avgChargePrice: result.avgChargePrice,
+        avgDischargePrice: result.avgDischargePrice,
+        energyTraded: result.energyTraded,
+        operations: operations,
+        socHistory: socHistory,
+        efficiency: efficiency,
+        reservation: result.reservation,
+        dpOptimal: true
+    };
 }
 
 /**
@@ -652,19 +738,49 @@ function updatePriceChart(dayResult) {
     const labels = dayResult.operations.map(op => op.time);
     const prices = dayResult.operations.map(op => op.price);
     
+    const datasets = [{
+        label: 'Market Price ($/MWh)',
+        data: prices,
+        borderColor: GREENWOOD_COLORS.primary,
+        backgroundColor: `${GREENWOOD_COLORS.primary}20`,
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.1,
+        order: 1
+    }];
+    
+    // Add reservation price bands if using DP optimization
+    if (dayResult.dpOptimal && dayResult.reservation) {
+        datasets.push({
+            label: 'Charge Threshold',
+            data: dayResult.operations.map(op => op.reservationCharge),
+            borderColor: '#4A90E2',
+            backgroundColor: 'transparent',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            pointRadius: 0,
+            tension: 0.1,
+            order: 2
+        });
+        
+        datasets.push({
+            label: 'Discharge Threshold',
+            data: dayResult.operations.map(op => op.reservationDischarge),
+            borderColor: '#E94B3C',
+            backgroundColor: 'transparent',
+            borderWidth: 1,
+            borderDash: [5, 5],
+            pointRadius: 0,
+            tension: 0.1,
+            order: 2
+        });
+    }
+    
     priceChart = new Chart(ctx, {
         type: 'line',
         data: {
             labels: labels,
-            datasets: [{
-                label: 'Market Price ($/MWh)',
-                data: prices,
-                borderColor: GREENWOOD_COLORS.primary,
-                backgroundColor: `${GREENWOOD_COLORS.primary}20`,
-                borderWidth: 2,
-                pointRadius: 0,
-                tension: 0.1
-            }]
+            datasets: datasets
         },
         options: {
             responsive: true,

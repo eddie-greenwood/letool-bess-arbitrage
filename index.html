@@ -663,6 +663,17 @@
                         <label for="maxCycles">Max Cycles per Day</label>
                         <input type="number" id="maxCycles" value="2" min="0.5" max="4" step="0.5">
                     </div>
+                    <div class="control-group">
+                        <label for="optimizationMode">Optimization Mode</label>
+                        <select id="optimizationMode">
+                            <option value="dp" selected>Dynamic Programming (Optimal)</option>
+                            <option value="heuristic">Heuristic (Fast)</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label for="throughputCost">Degradation Cost ($/MWh)</label>
+                        <input type="number" id="throughputCost" value="0" min="0" max="20" step="1" title="Cost per MWh of battery throughput to account for degradation">
+                    </div>
                 </div>
             </div>
 
@@ -811,6 +822,7 @@
         </div>
     </div>
 
+    <script src="dp-optimizer.js"></script>
     <script src="advanced-script.js"></script>
 </body>
 </html>
