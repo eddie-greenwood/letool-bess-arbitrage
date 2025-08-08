@@ -3,7 +3,7 @@
  * Version: 1.0
  * Powered by: Greenwood Energy
  * 
- * 🚀 PRODUCTION READY VERSION
+ * PRODUCTION READY VERSION
  * - OpenNEM API integration (public, no auth)
  * - Cloudflare Pages compatible
  * - GitHub deployable
@@ -35,8 +35,8 @@ let currentDayIndex = 0;
  * Initialize the application
  */
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🌿 Lé Tool by Greenwood Energy - Initialized');
-    console.log('📊 BESS Opportunity Dashboard v1.0');
+    console.log('Lé Tool by Greenwood Energy - Initialized');
+    console.log('BESS Opportunity Dashboard v1.0');
     
     // Set default dates (last 7 days)
     const today = new Date();
@@ -49,7 +49,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check API status quietly
     checkAPIStatus();
     
-    console.log('💡 Ready to analyze BESS opportunities');
+    console.log('Ready to analyze BESS opportunities');
 });
 
 /**
@@ -68,7 +68,7 @@ async function checkAPIStatus() {
             statusLight.style.animation = 'none';
             statusText.textContent = 'API Connected';
             statusText.style.color = '#00E87E';
-            console.log('✅ API connection verified');
+            console.log('API connection verified');
         } else {
             // API returned an error
             statusLight.style.background = '#ff6b6b';
@@ -223,7 +223,7 @@ async function fetchDayData(date, region) {
                 // Check if we got valid data from Worker
                 if (data.success && data.data) {
                     document.getElementById('dataSource').textContent = 
-                        data.source === 'opennem' ? '🟢 Live data from OpenNEM API' : '📊 High-quality market simulation';
+                        data.source === 'opennem' ? 'Live data from OpenNEM API' : 'High-quality market simulation';
                     return data.data; // Return the intervals directly
                 }
                 
@@ -232,7 +232,7 @@ async function fetchDayData(date, region) {
                 
                 if (parsedData && parsedData.length > 0) {
                     document.getElementById('dataSource').textContent = 
-                        '🟢 Live data from OpenNEM API';
+                        'Live data from OpenNEM API';
                     return parsedData;
                 }
             }
@@ -251,18 +251,18 @@ async function fetchDayData(date, region) {
         
         if (parsedData && parsedData.length > 0) {
             document.getElementById('dataSource').textContent = 
-                '🟢 Live data from OpenNEM API (direct)';
+                'Live data from OpenNEM API (direct)';
             return parsedData;
         } else {
             document.getElementById('dataSource').textContent = 
-                '📊 Using simulated data (no API data for this date)';
+                'Using simulated data (no API data for this date)'
             return simulateMarketData(date, region);
         }
         
     } catch (error) {
         console.error('Fetch failed:', error);
         document.getElementById('dataSource').textContent = 
-            `📊 Using simulated data (API unavailable)`;
+            'Using simulated data (API unavailable)';
         return simulateMarketData(date, region);
     }
 }

@@ -21,9 +21,11 @@
             --greenwood-dark: #000000;
             --greenwood-light: #00FF8C;
             --greenwood-accent: #00C96A;
-            --text-primary: #000000;
-            --text-secondary: #333333;
-            --bg-light: #F8F9FA;
+            --dark-bg: #0a0a0a;
+            --card-bg: #141414;
+            --card-border: #1a1a1a;
+            --text-primary: #ffffff;
+            --text-secondary: #a0a0a0;
             --white: #FFFFFF;
         }
 
@@ -109,15 +111,15 @@
         }
 
         .controls {
-            background: var(--white);
+            background: var(--card-bg);
             border-radius: 20px;
             padding: 30px;
             margin-bottom: 25px;
             box-shadow: 
-                0 10px 40px rgba(0, 0, 0, 0.15),
-                0 0 60px rgba(0, 232, 126, 0.1);
+                0 10px 40px rgba(0, 0, 0, 0.5),
+                0 0 60px rgba(0, 232, 126, 0.05);
             animation: fadeInUp 0.8s ease 0.2s both;
-            border: 1px solid rgba(0, 232, 126, 0.1);
+            border: 1px solid var(--card-border);
         }
 
         .control-section {
@@ -127,10 +129,13 @@
         .control-section h3 {
             color: var(--text-primary);
             margin-bottom: 15px;
-            font-size: 1.1rem;
+            font-size: 1.2rem;
+            font-weight: 600;
             border-bottom: 2px solid var(--greenwood-primary);
             padding-bottom: 8px;
             display: inline-block;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .control-row {
@@ -157,11 +162,12 @@
         .control-group input {
             width: 100%;
             padding: 10px;
-            border: 2px solid #e0e0e0;
+            border: 2px solid var(--card-border);
             border-radius: 10px;
             font-size: 14px;
             transition: all 0.3s;
-            background: var(--white);
+            background: #1a1a1a;
+            color: var(--text-primary);
         }
 
         .control-group select:focus,
@@ -176,14 +182,14 @@
             color: var(--greenwood-dark);
             border: none;
             padding: 12px 40px;
-            border-radius: 10px;
+            border-radius: 8px;
             font-size: 16px;
-            font-weight: 700;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
             height: 44px;
-            box-shadow: 0 4px 15px rgba(0, 232, 126, 0.3);
-            text-transform: uppercase;
+            box-shadow: 0 4px 20px rgba(0, 232, 126, 0.4);
+            text-transform: none;
             letter-spacing: 0.5px;
         }
 
@@ -221,14 +227,14 @@
         }
 
         .metric-card {
-            background: var(--white);
+            background: var(--card-bg);
             border-radius: 20px;
             padding: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             animation: fadeInUp 0.8s ease both;
             position: relative;
             overflow: hidden;
-            border: 1px solid rgba(0, 232, 126, 0.1);
+            border: 1px solid var(--card-border);
             transition: all 0.3s;
         }
 
@@ -269,7 +275,7 @@
         }
 
         .metric-label {
-            color: #666;
+            color: var(--text-secondary);
             font-size: 0.85rem;
             margin-bottom: 8px;
             text-transform: uppercase;
@@ -285,11 +291,15 @@
         }
 
         .metric-value.money {
-            color: var(--greenwood-primary);
+            background: linear-gradient(135deg, var(--greenwood-primary), var(--greenwood-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
 
         .metric-value.positive {
             color: var(--greenwood-accent);
+            text-shadow: 0 0 10px rgba(0, 232, 126, 0.3);
         }
 
         .metric-unit {
@@ -298,13 +308,13 @@
         }
 
         .chart-container {
-            background: var(--white);
+            background: var(--card-bg);
             border-radius: 20px;
             padding: 30px;
             margin-bottom: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             animation: fadeInUp 0.8s ease 0.4s both;
-            border: 1px solid rgba(0, 232, 126, 0.1);
+            border: 1px solid var(--card-border);
         }
 
         .chart-title {
@@ -424,13 +434,13 @@
         }
 
         .results-table {
-            background: var(--white);
+            background: var(--card-bg);
             border-radius: 20px;
             padding: 30px;
             margin-bottom: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             overflow-x: auto;
-            border: 1px solid rgba(0, 232, 126, 0.1);
+            border: 1px solid var(--card-border);
         }
 
         .results-table h3 {
@@ -458,7 +468,7 @@
 
         td {
             padding: 10px 12px;
-            border-bottom: 1px solid #e0e0e0;
+            border-bottom: 1px solid var(--card-border);
             font-size: 0.9rem;
             color: var(--text-secondary);
         }
@@ -511,16 +521,17 @@
             gap: 10px;
             margin-bottom: 25px;
             border-bottom: 2px solid rgba(0, 232, 126, 0.2);
-            background: var(--white);
+            background: var(--card-bg);
             padding: 15px;
             border-radius: 15px 15px 0 0;
+            border: 1px solid var(--card-border);
         }
 
         .nav-tab {
             padding: 10px 20px;
             background: none;
             border: none;
-            color: #666;
+            color: var(--text-secondary);
             font-weight: 600;
             cursor: pointer;
             border-bottom: 3px solid transparent;
@@ -550,7 +561,7 @@
         .progress-bar {
             width: 100%;
             height: 8px;
-            background: #e0e0e0;
+            background: var(--card-border);
             border-radius: 4px;
             overflow: hidden;
             margin-top: 10px;
@@ -584,29 +595,24 @@
     <div class="dashboard">
         <div class="header">
             <div class="logo-container">
-                <svg class="logo" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
-                    <text x="0" y="45" font-family="Arial, sans-serif" font-size="48" font-weight="bold" fill="#00E87E">Lé</text>
-                    <text x="55" y="45" font-family="Arial, sans-serif" font-size="48" font-weight="300" fill="white">Tool</text>
-                </svg>
-                <div class="brand-divider"></div>
-                <svg class="logo" viewBox="0 0 280 60" xmlns="http://www.w3.org/2000/svg">
-                    <text x="0" y="45" font-family="Arial, sans-serif" font-size="36" font-weight="500" fill="white">Greenwood</text>
-                    <text x="190" y="45" font-family="Arial, sans-serif" font-size="36" font-weight="300" fill="#00E87E">energy</text>
-                </svg>
+                <span class="logo-le" style="font-size: 3rem; font-weight: 700; color: #00E87E; text-shadow: 0 0 20px rgba(0, 232, 126, 0.5);">Lé</span>
+                <span class="logo-tool" style="font-size: 3rem; font-weight: 300; color: white; margin-right: 20px;">Tool</span>
+                <span class="brand-divider" style="width: 2px; height: 40px; background: linear-gradient(to bottom, transparent, #00E87E, transparent); margin: 0 20px;"></span>
+                <span class="logo-greenwood" style="font-size: 2.5rem; font-weight: 500; color: white;">Greenwood</span>
+                <span class="logo-energy" style="font-size: 2.5rem; font-weight: 300; color: #00E87E; text-shadow: 0 0 15px rgba(0, 232, 126, 0.4); margin-left: 10px;">energy</span>
             </div>
-            <h1>Lé Tool</h1>
             <p class="subtitle">Advanced BESS Opportunity Dashboard</p>
             <p class="powered-by">Powered by Greenwood Energy • Multi-unit battery energy storage system arbitrage calculator</p>
             <div id="apiStatus" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 15px; padding: 8px 16px; background: rgba(0, 232, 126, 0.1); border-radius: 20px;">
                 <span id="statusLight" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ffc107; animation: pulse 2s infinite;"></span>
                 <span id="statusText" style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.9);">Checking connection...</span>
             </div>
-            <p id="dataSource" style="font-size: 0.9rem; margin-top: 10px; color: #00E87E; display: none;"></p>
+            <p id="dataSource" style="font-size: 0.9rem; margin-top: 10px; color: #00E87E;"></p>
         </div>
 
         <div class="controls">
             <div class="control-section">
-                <h3>📅 Analysis Period</h3>
+                <h3>Analysis Period</h3>
                 <div class="control-row">
                     <div class="control-group">
                         <label for="region">Region</label>
@@ -630,7 +636,7 @@
             </div>
 
             <div class="control-section">
-                <h3>🔋 Battery Configuration</h3>
+                <h3>Battery Configuration</h3>
                 <div class="control-row">
                     <div class="control-group">
                         <label for="numUnits">Number of BESS Units</label>
@@ -675,32 +681,32 @@
 
         <div class="metrics" id="metrics" style="display: none;">
             <div class="metric-card highlight">
-                <div class="metric-label">💸 Total Opportunity</div>
+                <div class="metric-label">Total Opportunity</div>
                 <div class="metric-value money" id="totalRevenue">$0</div>
                 <div class="metric-unit">AUD total</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">📊 Daily Average</div>
+                <div class="metric-label">Daily Average</div>
                 <div class="metric-value" id="avgDaily">$0</div>
                 <div class="metric-unit">AUD per day</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">⚡ Total Energy</div>
+                <div class="metric-label">Total Energy</div>
                 <div class="metric-value" id="totalEnergy">0</div>
                 <div class="metric-unit">MWh traded</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">🔄 Avg Cycles/Day</div>
+                <div class="metric-label">Avg Cycles/Day</div>
                 <div class="metric-value" id="avgCycles">0</div>
                 <div class="metric-unit">cycles</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">📈 Best Day</div>
+                <div class="metric-label">Best Day</div>
                 <div class="metric-value positive" id="bestDay">$0</div>
                 <div class="metric-unit" id="bestDayDate">-</div>
             </div>
             <div class="metric-card">
-                <div class="metric-label">💰 Annualized</div>
+                <div class="metric-label">Annualized</div>
                 <div class="metric-value money" id="annualRevenue">$0</div>
                 <div class="metric-unit">AUD per year</div>
             </div>
@@ -715,7 +721,6 @@
         <div id="dailyTab" class="tab-content active">
             <div class="chart-container" id="socChartContainer" style="display: none;">
                 <h3 class="chart-title">
-                    <span>🔋</span>
                     <span>Battery State of Charge (SoC)</span>
                 </h3>
                 <div class="chart-wrapper">
@@ -725,7 +730,6 @@
 
             <div class="chart-container" id="priceChartContainer" style="display: none;">
                 <h3 class="chart-title">
-                    <span>📈</span>
                     <span>Price Profile & Battery Operations</span>
                 </h3>
                 <div class="chart-wrapper">
@@ -751,7 +755,6 @@
         <div id="summaryTab" class="tab-content">
             <div class="chart-container" id="dailyRevenueChartContainer" style="display: none;">
                 <h3 class="chart-title">
-                    <span>💰</span>
                     <span>Daily Revenue Over Period</span>
                 </h3>
                 <div class="chart-wrapper">
@@ -760,7 +763,7 @@
             </div>
 
             <div class="results-table" id="resultsTable" style="display: none;">
-                <h3>📊 Daily Breakdown</h3>
+                <h3>Daily Breakdown</h3>
                 <table>
                     <thead>
                         <tr>
@@ -780,7 +783,6 @@
         <div id="detailedTab" class="tab-content">
             <div class="chart-container" id="cumulativeChartContainer" style="display: none;">
                 <h3 class="chart-title">
-                    <span>📊</span>
                     <span>Cumulative Revenue</span>
                 </h3>
                 <div class="chart-wrapper">
@@ -790,7 +792,6 @@
 
             <div class="chart-container" id="utilizationChartContainer" style="display: none;">
                 <h3 class="chart-title">
-                    <span>⚡</span>
                     <span>Battery Utilization</span>
                 </h3>
                 <div class="chart-wrapper small">
