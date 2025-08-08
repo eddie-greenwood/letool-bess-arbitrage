@@ -5,14 +5,14 @@ export async function onRequestGet({ request }) {
   const date = searchParams.get('date');
 
   try {
-    // Try the OpenNEM v3 endpoint
+    // Try different OpenNEM endpoints
     let target;
     if (date) {
-      // For specific date, use a different endpoint format
-      target = `https://data.opennem.org.au/v3/stats/price/NEM/${region}/energy/daily.json`;
+      // Try the stats endpoint with date parameter
+      target = `https://api.opennem.org.au/stats/price/NEM/${region}?date=${date}`;
     } else {
-      // For period-based queries
-      target = `https://data.opennem.org.au/v3/stats/price/NEM/${region}/energy/${period}.json`;
+      // For period-based queries, try the data subdomain
+      target = `https://data.opennem.org.au/v3/stats/au/NEM/${region}/price/${period}.json`;
     }
 
     console.log('Fetching from OpenNEM:', target);
@@ -20,17 +20,21 @@ export async function onRequestGet({ request }) {
     const resp = await fetch(target, { 
       headers: { 
         'Accept': 'application/json',
-        'User-Agent': 'LeTool/1.0'
-      } 
+        'User-Agent': 'Mozilla/5.0 (compatible; LeTool/1.0)'
+      },
+      redirect: 'follow'
     });
+    
+    console.log('Response status:', resp.status);
+    console.log('Response headers:', resp.headers.get('content-type'));
     
     const body = await resp.text();
     
     // Check if OpenNEM returned HTML instead of JSON
     const isHtml = body.trim().startsWith('<') || body.trim().startsWith('<!');
     
-    if (isHtml) {
-      console.error('OpenNEM returned HTML instead of JSON');
+    if (isHtml || resp.status !== 200) {
+      console.error('OpenNEM issue - Status:', resp.status, 'HTML:', isHtml);
       // Return simulated data as fallback
       return generateSimulatedResponse(region, date);
     }
