@@ -366,69 +366,77 @@ function simulateMarketData(date, region) {
 }
 
 /**
- * Calculate multi-cycle arbitrage opportunities
+ * Calculate multi-cycle arbitrage opportunities with improved algorithm
  */
 function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity, totalPower) {
     const intervals = data.length;
-    const timeStep = 5 / 60;
+    const timeStep = 5 / 60; // 5 minutes in hours
     
+    // Initialize state
     let soc = 0;
     const socHistory = [];
     const operations = [];
     
-    const priceWindows = [];
-    for (let i = 0; i < intervals; i++) {
-        priceWindows.push({
-            index: i,
-            price: data[i].price,
-            type: 'neutral'
-        });
-    }
+    // Find and sort opportunities by profitability
+    const opportunities = findBestArbitrageOpportunities(data, efficiency, maxCycles, totalCapacity, totalPower);
     
-    const sortedByPrice = [...priceWindows].sort((a, b) => a.price - b.price);
-    
-    const intervalsPerCycle = Math.ceil((totalCapacity / totalPower) / timeStep);
-    const totalCycleIntervals = Math.floor(maxCycles * intervalsPerCycle * 2);
-    
-    const chargeCount = Math.min(Math.floor(totalCycleIntervals / 2), intervals / 2);
-    for (let i = 0; i < chargeCount && i < sortedByPrice.length; i++) {
-        priceWindows[sortedByPrice[i].index].type = 'charge';
-    }
-    
-    for (let i = 0; i < chargeCount && i < sortedByPrice.length; i++) {
-        const idx = sortedByPrice[sortedByPrice.length - 1 - i].index;
-        if (priceWindows[idx].type === 'neutral') {
-            priceWindows[idx].type = 'discharge';
-        }
-    }
-    
+    // Execute the trading strategy
     let revenue = 0;
     let energyCharged = 0;
     let energyDischarged = 0;
-    let actualCycles = 0;
+    let totalCostOfCharging = 0;
+    let totalRevenueFromDischarging = 0;
     
+    // Create operation schedule
+    const schedule = new Array(intervals).fill('idle');
+    for (const opp of opportunities) {
+        for (let i = opp.chargeStart; i <= opp.chargeEnd; i++) {
+            if (i < intervals) schedule[i] = 'charge';
+        }
+        for (let i = opp.dischargeStart; i <= opp.dischargeEnd; i++) {
+            if (i < intervals) schedule[i] = 'discharge';
+        }
+    }
+    
+    // Simulate battery operation
     for (let i = 0; i < intervals; i++) {
-        const window = priceWindows[i];
         let powerFlow = 0;
+        const operation = schedule[i];
         
-        if (window.type === 'charge' && soc < totalCapacity) {
+        if (operation === 'charge' && soc < totalCapacity) {
             const chargeAmount = Math.min(
                 totalPower * timeStep,
                 totalCapacity - soc
             );
-            soc += chargeAmount;
-            powerFlow = -chargeAmount / timeStep;
-            revenue -= chargeAmount * data[i].price;
-            energyCharged += chargeAmount;
-        } else if (window.type === 'discharge' && soc > 0) {
-            const dischargeAmount = Math.min(
-                totalPower * timeStep * efficiency,
-                soc
-            );
-            soc -= dischargeAmount;
-            powerFlow = dischargeAmount / timeStep;
-            revenue += dischargeAmount * data[i].price;
-            energyDischarged += dischargeAmount;
+            
+            if (chargeAmount > 0.001) {
+                soc += chargeAmount;
+                powerFlow = -totalPower;
+                
+                // Cost of charging
+                const chargeCost = chargeAmount * data[i].price;
+                revenue -= chargeCost;
+                totalCostOfCharging += chargeCost;
+                energyCharged += chargeAmount;
+            }
+        } else if (operation === 'discharge' && soc > 0.001) {
+            const maxDischarge = totalPower * timeStep;
+            const availableEnergy = soc;
+            const dischargeAmount = Math.min(maxDischarge, availableEnergy);
+            
+            if (dischargeAmount > 0.001) {
+                // Battery loses energy internally
+                soc -= dischargeAmount;
+                // But we only deliver efficiency * energy to the grid
+                const deliveredEnergy = dischargeAmount * efficiency;
+                powerFlow = totalPower;
+                
+                // Revenue from discharging (sell the delivered energy)
+                const dischargeRevenue = deliveredEnergy * data[i].price;
+                revenue += dischargeRevenue;
+                totalRevenueFromDischarging += dischargeRevenue;
+                energyDischarged += deliveredEnergy;
+            }
         }
         
         socHistory.push(soc);
@@ -436,33 +444,148 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
             ...data[i],
             soc: soc,
             powerFlow: powerFlow,
-            operation: window.type
+            operation: operation === 'idle' ? 'neutral' : operation
         });
     }
     
-    actualCycles = Math.min(energyCharged, energyDischarged) / totalCapacity;
+    // Calculate actual cycles (based on energy throughput)
+    const actualCycles = energyCharged > 0 ? energyCharged / totalCapacity : 0;
     
-    const chargeIntervals = priceWindows.filter(w => w.type === 'charge');
-    const dischargeIntervals = priceWindows.filter(w => w.type === 'discharge');
+    // Calculate weighted average prices
+    let weightedChargePrice = 0;
+    let weightedDischargePrice = 0;
+    let totalChargeEnergy = 0;
+    let totalDischargeEnergy = 0;
     
-    const avgChargePrice = chargeIntervals.length > 0 
-        ? chargeIntervals.reduce((sum, w) => sum + data[w.index].price, 0) / chargeIntervals.length
-        : 0;
+    for (let i = 0; i < operations.length; i++) {
+        if (operations[i].operation === 'charge' && operations[i].powerFlow < 0) {
+            const energy = Math.abs(operations[i].powerFlow) * timeStep;
+            weightedChargePrice += operations[i].price * energy;
+            totalChargeEnergy += energy;
+        } else if (operations[i].operation === 'discharge' && operations[i].powerFlow > 0) {
+            const energy = operations[i].powerFlow * timeStep * efficiency;
+            weightedDischargePrice += operations[i].price * energy;
+            totalDischargeEnergy += energy;
+        }
+    }
     
-    const avgDischargePrice = dischargeIntervals.length > 0
-        ? dischargeIntervals.reduce((sum, w) => sum + data[w.index].price, 0) / dischargeIntervals.length
-        : 0;
+    const avgChargePrice = totalChargeEnergy > 0 ? weightedChargePrice / totalChargeEnergy : 0;
+    const avgDischargePrice = totalDischargeEnergy > 0 ? weightedDischargePrice / totalDischargeEnergy : 0;
+    
+    // Calculate the effective spread (this is what you actually make per MWh traded)
+    // You buy at charge price, lose (1-efficiency) in conversion, and sell at discharge price
+    const effectiveSpread = avgDischargePrice - (avgChargePrice / efficiency);
     
     return {
         revenue: revenue,
         cycles: actualCycles,
-        avgSpread: avgDischargePrice - avgChargePrice,
+        avgSpread: effectiveSpread,  // This is the true profit margin per MWh
+        avgChargePrice: avgChargePrice,
+        avgDischargePrice: avgDischargePrice,
         energyTraded: energyCharged + energyDischarged,
         operations: operations,
         socHistory: socHistory,
-        avgChargePrice,
-        avgDischargePrice
+        efficiency: efficiency
     };
+}
+
+/**
+ * Find the best arbitrage opportunities for the day
+ */
+function findBestArbitrageOpportunities(data, efficiency, maxCycles, totalCapacity, totalPower) {
+    const timeStep = 5 / 60;
+    const intervalsNeeded = Math.ceil((totalCapacity / totalPower) / timeStep);
+    const opportunities = [];
+    
+    // Find all potential charge/discharge windows
+    const potentialOpportunities = [];
+    
+    // Look for good spread opportunities
+    for (let chargeStart = 0; chargeStart < data.length - intervalsNeeded * 2; chargeStart++) {
+        // Calculate average charge price for this window
+        let chargeSum = 0;
+        for (let i = 0; i < intervalsNeeded && chargeStart + i < data.length; i++) {
+            chargeSum += data[chargeStart + i].price;
+        }
+        const avgChargePrice = chargeSum / intervalsNeeded;
+        
+        // Look for discharge window after charge completes
+        const earliestDischarge = chargeStart + intervalsNeeded;
+        
+        for (let dischargeStart = earliestDischarge; dischargeStart < data.length - intervalsNeeded + 1; dischargeStart++) {
+            // Calculate average discharge price for this window
+            let dischargeSum = 0;
+            for (let i = 0; i < intervalsNeeded && dischargeStart + i < data.length; i++) {
+                dischargeSum += data[dischargeStart + i].price;
+            }
+            const avgDischargePrice = dischargeSum / intervalsNeeded;
+            
+            // Calculate profit accounting for efficiency
+            const energyIn = totalCapacity;
+            const energyOut = totalCapacity * efficiency;
+            const cost = energyIn * avgChargePrice;
+            const revenue = energyOut * avgDischargePrice;
+            const profit = revenue - cost;
+            const profitPerMWh = profit / totalCapacity;
+            
+            if (profit > 0) {
+                potentialOpportunities.push({
+                    chargeStart,
+                    chargeEnd: chargeStart + intervalsNeeded - 1,
+                    dischargeStart,
+                    dischargeEnd: dischargeStart + intervalsNeeded - 1,
+                    avgChargePrice,
+                    avgDischargePrice,
+                    profit,
+                    profitPerMWh,
+                    effectiveSpread: avgDischargePrice - (avgChargePrice / efficiency)
+                });
+            }
+        }
+    }
+    
+    // Sort by profit
+    potentialOpportunities.sort((a, b) => b.profit - a.profit);
+    
+    // Select non-overlapping opportunities up to maxCycles
+    const usedIntervals = new Set();
+    
+    for (const opp of potentialOpportunities) {
+        if (opportunities.length >= maxCycles) break;
+        
+        // Check if intervals are available
+        let available = true;
+        for (let i = opp.chargeStart; i <= opp.chargeEnd; i++) {
+            if (usedIntervals.has(i)) {
+                available = false;
+                break;
+            }
+        }
+        if (available) {
+            for (let i = opp.dischargeStart; i <= opp.dischargeEnd; i++) {
+                if (usedIntervals.has(i)) {
+                    available = false;
+                    break;
+                }
+            }
+        }
+        
+        if (available) {
+            opportunities.push(opp);
+            // Mark intervals as used
+            for (let i = opp.chargeStart; i <= opp.chargeEnd; i++) {
+                usedIntervals.add(i);
+            }
+            for (let i = opp.dischargeStart; i <= opp.dischargeEnd; i++) {
+                usedIntervals.add(i);
+            }
+        }
+    }
+    
+    // Sort selected opportunities by time
+    opportunities.sort((a, b) => a.chargeStart - b.chargeStart);
+    
+    return opportunities;
 }
 
 /**
