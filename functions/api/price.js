@@ -1,25 +1,29 @@
-export async function onRequestGet({ request }) {
+export async function onRequestGet({ request, env }) {
   const { searchParams } = new URL(request.url);
   const region = searchParams.get('region') || 'VIC1';
   const date = searchParams.get('date');
-
-  // List of potential OpenNEM/OpenElectricity endpoints to try
+  
+  // OpenElectricity API key - should be in environment variables in production
+  const API_KEY = 'oe_3ZYA5q2YBHGz5y8ZFafkbTPF';
+  
+  // List of potential endpoints to try with the API key
   const endpoints = [
-    `https://api.openelectricity.org.au/stats/price/NEM/${region}.json`,
+    `https://api.openelectricity.org.au/v3/stats/price/NEM/${region}.json`,
+    `https://api.openelectricity.org.au/v3/stats/energy/NEM/${region}.json`,
     `https://api.opennem.org.au/stats/price/NEM/${region}.json`,
-    `https://data.opennem.org.au/v3/stats/au/NEM/${region}/price/7d.json`,
-    `https://api.openelectricity.org.au/v3/stats/au/NEM/${region}/price.json`,
+    `https://api.opennem.org.au/stats/au/NEM/${region}/price.json`,
   ];
 
-  // Try each endpoint
+  // Try each endpoint with authentication
   for (const endpoint of endpoints) {
     try {
-      console.log('Trying endpoint:', endpoint);
+      console.log('Trying endpoint with auth:', endpoint);
       
       const resp = await fetch(endpoint, {
         headers: {
           'Accept': 'application/json',
-          'User-Agent': 'Mozilla/5.0 (compatible; LeTool/1.0)',
+          'Authorization': `Bearer ${API_KEY}`,
+          'User-Agent': 'LeTool/1.0',
         },
         redirect: 'follow'
       });
@@ -27,9 +31,14 @@ export async function onRequestGet({ request }) {
       if (resp.ok) {
         const text = await resp.text();
         
-        // Check if it's JSON
         try {
           const data = JSON.parse(text);
+          
+          // Check for error in response
+          if (data.error || data.response_status === 'ERROR') {
+            console.log('API returned error:', data.error);
+            continue;
+          }
           
           // Try to parse the data
           const intervals = parseApiResponse(data, date);
@@ -38,11 +47,11 @@ export async function onRequestGet({ request }) {
             return new Response(JSON.stringify({
               success: true,
               data: intervals,
-              source: 'opennem',
+              source: 'openelectricity',
               region: region,
               date: date,
               endpoint: endpoint,
-              message: 'Live data from OpenNEM/OpenElectricity'
+              message: 'LIVE data from OpenElectricity API'
             }), {
               status: 200,
               headers: {
@@ -55,6 +64,8 @@ export async function onRequestGet({ request }) {
         } catch (e) {
           console.log('Failed to parse JSON from', endpoint);
         }
+      } else {
+        console.log('Endpoint returned', resp.status);
       }
     } catch (error) {
       console.log('Endpoint failed:', endpoint, error.message);
@@ -71,8 +82,8 @@ export async function onRequestGet({ request }) {
     source: 'simulation',
     region: region,
     date: date,
-    message: 'Using NEM market simulation (API endpoints unavailable)',
-    note: 'OpenNEM/OpenElectricity may require API key registration'
+    message: 'Using NEM market simulation',
+    note: 'API endpoints not returning valid data - check API documentation'
   }), {
     status: 200,
     headers: {
@@ -91,18 +102,29 @@ function parseApiResponse(data, requestedDate) {
       return parseIntervalArray(data, requestedDate);
     }
     
-    // Format 2: data.data array structure
+    // Format 2: data.data array structure (OpenNEM/OpenElectricity format)
     if (data.data && Array.isArray(data.data)) {
       // Look for price data
       const priceData = data.data.find(d => 
         d.type === 'price' || 
         d.type === 'energy' ||
         d.id === 'price.spot' ||
-        d.code === 'price.spot'
+        d.code === 'price.spot' ||
+        d.data_type === 'price'
       );
       
       if (priceData && priceData.history) {
         return parseHistoryData(priceData.history, requestedDate);
+      }
+      
+      // Try energy data as fallback
+      const energyData = data.data.find(d => 
+        d.type === 'energy' ||
+        d.data_type === 'energy'
+      );
+      
+      if (energyData && energyData.history) {
+        return parseHistoryData(energyData.history, requestedDate);
       }
     }
     
