@@ -54,7 +54,7 @@ document.addEventListener('DOMContentLoaded', function() {
 /**
  * Set time period for analysis
  */
-function setTimePeriod(period) {
+function setTimePeriod(period, evt) {
     const endDate = new Date();
     let startDate = new Date();
     
@@ -63,8 +63,17 @@ function setTimePeriod(period) {
         btn.classList.remove('active');
     });
     
-    // Add active class to clicked button
-    event?.target?.classList.add('active');
+    // Add active class to appropriate button
+    if (evt && evt.target) {
+        evt.target.classList.add('active');
+    } else {
+        // Find and activate the appropriate button
+        document.querySelectorAll('.period-btn').forEach(btn => {
+            if (btn.getAttribute('onclick')?.includes(period)) {
+                btn.classList.add('active');
+            }
+        });
+    }
     
     switch(period) {
         case '7d':
@@ -86,11 +95,6 @@ function setTimePeriod(period) {
     // Set the date inputs
     document.getElementById('startDate').value = startDate.toISOString().split('T')[0];
     document.getElementById('endDate').value = endDate.toISOString().split('T')[0];
-    
-    // If this is the initial load, don't set active class (it's already set in HTML)
-    if (!event) {
-        document.querySelector('.period-btn').classList.add('active');
-    }
 }
 
 // Make function globally available
