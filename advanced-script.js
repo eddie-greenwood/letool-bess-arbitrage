@@ -46,78 +46,46 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('startDate').value = weekAgo.toISOString().split('T')[0];
     document.getElementById('endDate').value = today.toISOString().split('T')[0];
     
+    // Check API status quietly
+    checkAPIStatus();
+    
     console.log('💡 Ready to analyze BESS opportunities');
 });
 
 /**
- * Test API connection
+ * Check API status and update indicator
  */
-async function testAPIConnection() {
-    console.clear();
-    console.log('🌿 GREENWOOD ENERGY - Testing API Connections...');
+async function checkAPIStatus() {
+    const statusLight = document.getElementById('statusLight');
+    const statusText = document.getElementById('statusText');
     
-    const testResults = [];
-    
-    // Test Pages Functions API
     try {
-        const apiUrl = '/api/test';
-            
-        const resp = await fetch(apiUrl);
-        
-        if (resp.ok) {
-            const data = await resp.json();
-            console.log('✅ API Response:', data);
-            testResults.push('✅ API: Connected');
-            if (data.type === 'Cloudflare Pages Function') {
-                testResults.push('✅ Pages Functions working');
-            }
+        const response = await fetch('/api/test');
+        if (response.ok) {
+            const data = await response.json();
+            // API is working
+            statusLight.style.background = '#00E87E';
+            statusLight.style.animation = 'none';
+            statusText.textContent = 'API Connected';
+            statusText.style.color = '#00E87E';
+            console.log('✅ API connection verified');
         } else {
-            testResults.push(`⚠️ Worker API returned ${resp.status}`);
+            // API returned an error
+            statusLight.style.background = '#ff6b6b';
+            statusLight.style.animation = 'pulse 2s infinite';
+            statusText.textContent = 'API Error';
+            statusText.style.color = '#ff6b6b';
         }
-    } catch (e) {
-        console.error('Worker API failed:', e);
-        testResults.push(`⚠️ Worker API: ${e.message}`);
+    } catch (error) {
+        // Connection failed
+        statusLight.style.background = '#ff6b6b';
+        statusLight.style.animation = 'pulse 2s infinite';
+        statusText.textContent = 'Connection Failed';
+        statusText.style.color = '#ff6b6b';
+        console.error('API connection failed:', error);
     }
-    
-    // Test direct OpenNEM connection
-    try {
-        const resp = await fetch('https://api.opennem.org.au/networks');
-        
-        if (resp.ok) {
-            const data = await resp.json();
-            console.log('✅ Direct API Response:', data);
-            testResults.push('✅ Direct OpenNEM: Accessible (no CORS)');
-        } else {
-            testResults.push(`❌ Direct OpenNEM: HTTP ${resp.status}`);
-        }
-    } catch (e) {
-        console.error('❌ Direct connection failed:', e);
-        testResults.push(`❌ Direct OpenNEM: ${e.message.includes('Failed to fetch') ? 'CORS blocked' : e.message}`);
-    }
-    
-    // Test price endpoint via Pages Functions
-    try {
-        const today = new Date().toISOString().split('T')[0];
-        const apiUrl = `/api/price?region=VIC1&date=${today}`;
-            
-        const resp = await fetch(apiUrl);
-        
-        if (resp.ok) {
-            const data = await resp.json();
-            console.log('✅ Price data via Worker:', data);
-            testResults.push('✅ Price data via Worker: Success');
-        } else {
-            testResults.push(`⚠️ Price via Worker: HTTP ${resp.status}`);
-        }
-    } catch (e) {
-        testResults.push(`⚠️ Price via Worker: ${e.message}`);
-    }
-    
-    const msg = testResults.join('\n');
-    alert('Greenwood Energy - API Test Results:\n\n' + msg + '\n\nCheck console for details.');
-    
-    return testResults;
 }
+
 
 /**
  * Switch between tabs

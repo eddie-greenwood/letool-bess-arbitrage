@@ -263,6 +263,11 @@
             100% { background-position: 200% center; }
         }
 
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
         .metric-label {
             color: #666;
             font-size: 0.85rem;
@@ -592,7 +597,11 @@
             <h1>Lé Tool</h1>
             <p class="subtitle">Advanced BESS Opportunity Dashboard</p>
             <p class="powered-by">Powered by Greenwood Energy • Multi-unit battery energy storage system arbitrage calculator</p>
-            <p id="dataSource" style="font-size: 0.9rem; margin-top: 10px; color: #00E87E;"></p>
+            <div id="apiStatus" style="display: inline-flex; align-items: center; gap: 8px; margin-top: 15px; padding: 8px 16px; background: rgba(0, 232, 126, 0.1); border-radius: 20px;">
+                <span id="statusLight" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #ffc107; animation: pulse 2s infinite;"></span>
+                <span id="statusText" style="font-size: 0.9rem; color: rgba(255, 255, 255, 0.9);">Checking connection...</span>
+            </div>
+            <p id="dataSource" style="font-size: 0.9rem; margin-top: 10px; color: #00E87E; display: none;"></p>
         </div>
 
         <div class="controls">
@@ -650,20 +659,10 @@
                 <button class="btn" onclick="analyzeOpportunity()">
                     Calculate Opportunity
                 </button>
-                <button class="btn btn-secondary" onclick="testAPIConnection()">
-                    Test API Connection
-                </button>
             </div>
         </div>
 
         <div class="error" id="error"></div>
-        
-        <div class="info" id="apiInfo">
-            <strong>🚀 READY TO ANALYZE:</strong><br>
-            • Fetching real NEM spot prices from OpenNEM (public API) 📊<br>
-            • Multi-day analysis with comprehensive metrics 📈<br>
-            • <strong>Just click "Calculate Opportunity" to begin!</strong>
-        </div>
 
         <div class="loading" id="loading">
             <div class="spinner"></div>
