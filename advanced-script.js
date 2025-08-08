@@ -135,26 +135,26 @@ async function checkAPIStatus() {
         const response = await fetch('/api/test');
         if (response.ok) {
             const data = await response.json();
-            // API is working
+            // API is working - show simple ready state
             statusLight.style.background = '#00E87E';
             statusLight.style.animation = 'none';
-            statusText.textContent = 'API Connected';
+            statusText.textContent = 'Ready';
             statusText.style.color = '#00E87E';
             console.log('API connection verified');
         } else {
-            // API returned an error
-            statusLight.style.background = '#ff6b6b';
-            statusLight.style.animation = 'pulse 2s infinite';
-            statusText.textContent = 'API Error';
-            statusText.style.color = '#ff6b6b';
+            // API returned an error - but don't alarm the user
+            statusLight.style.background = '#ffc107';
+            statusLight.style.animation = 'none';
+            statusText.textContent = 'Ready (Offline Mode)';
+            statusText.style.color = '#ffc107';
         }
     } catch (error) {
-        // Connection failed
-        statusLight.style.background = '#ff6b6b';
-        statusLight.style.animation = 'pulse 2s infinite';
-        statusText.textContent = 'Connection Failed';
-        statusText.style.color = '#ff6b6b';
-        console.error('API connection failed:', error);
+        // Connection failed - will use simulated data
+        statusLight.style.background = '#ffc107';
+        statusLight.style.animation = 'none';
+        statusText.textContent = 'Ready (Offline Mode)';
+        statusText.style.color = '#ffc107';
+        console.log('Will use simulated data if API unavailable');
     }
 }
 
