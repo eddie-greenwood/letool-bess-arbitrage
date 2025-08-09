@@ -846,12 +846,66 @@ function updateDailyView(dayIndex) {
     const dayResult = analysisResults.dailyResults[dayIndex];
     currentDayIndex = dayIndex;
     
+    // Update chart titles with date information
+    const chartDate = dayResult.date || `Day ${dayIndex + 1}`;
+    const priceTitle = document.querySelector('#priceChartContainer .chart-title span');
+    const socTitle = document.querySelector('#socChartContainer .chart-title span');
+    
+    if (priceTitle) {
+        priceTitle.textContent = `Price Profile & Battery Operations - ${chartDate}`;
+    }
+    if (socTitle) {
+        socTitle.textContent = `Battery State of Charge (SoC) - ${chartDate}`;
+    }
+    
+    // Add navigation if multiple days
+    if (analysisResults.dailyResults.length > 1) {
+        addDayNavigation(dayIndex);
+    }
+    
     updatePriceChart(dayResult);
     updateSoCChart(dayResult);
     
     document.getElementById('priceChartContainer').style.display = 'block';
     document.getElementById('socChartContainer').style.display = 'block';
 }
+
+function addDayNavigation(currentIndex) {
+    const container = document.getElementById('priceChartContainer');
+    let nav = document.getElementById('dayNavigation');
+    
+    if (!nav) {
+        nav = document.createElement('div');
+        nav.id = 'dayNavigation';
+        nav.style.cssText = 'display: flex; justify-content: center; align-items: center; gap: 20px; margin: 20px 0; color: white;';
+        container.insertBefore(nav, container.firstChild);
+    }
+    
+    const totalDays = analysisResults.dailyResults.length;
+    nav.innerHTML = `
+        <button onclick="navigateDay(-1)" ${currentIndex === 0 ? 'disabled' : ''} 
+                style="background: #00E87E; color: black; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; ${currentIndex === 0 ? 'opacity: 0.5;' : ''}">
+            ← Previous
+        </button>
+        <span style="font-weight: bold; min-width: 150px; text-align: center;">
+            Day ${currentIndex + 1} of ${totalDays}
+        </span>
+        <button onclick="navigateDay(1)" ${currentIndex === totalDays - 1 ? 'disabled' : ''}
+                style="background: #00E87E; color: black; border: none; padding: 8px 16px; border-radius: 5px; cursor: pointer; ${currentIndex === totalDays - 1 ? 'opacity: 0.5;' : ''}">
+            Next →
+        </button>
+    `;
+}
+
+function navigateDay(direction) {
+    const newIndex = currentDayIndex + direction;
+    if (newIndex >= 0 && newIndex < analysisResults.dailyResults.length) {
+        updateDailyView(newIndex);
+    }
+}
+
+// Make navigateDay globally available
+window.navigateDay = navigateDay;
 
 /**
  * Update price chart
@@ -877,43 +931,54 @@ function updatePriceChart(dayResult) {
     
     // Add reservation price bands if using DP optimization
     if (dayResult.dpOptimal && dayResult.reservation) {
-        // Filter out invalid reservation prices
+        // Filter out invalid reservation prices and clamp to reasonable range
         const chargeThresholds = dayResult.operations.map(op => {
             const val = op.reservationCharge;
-            return (val && !isNaN(val) && val > -1000 && val < 1000) ? val : null;
+            if (!val || !isNaN(val)) {
+                // Clamp to reasonable market price range
+                return Math.max(-100, Math.min(500, val));
+            }
+            return null;
         });
         
         const dischargeThresholds = dayResult.operations.map(op => {
             const val = op.reservationDischarge;
-            return (val && !isNaN(val) && val > -1000 && val < 1000) ? val : null;
+            if (!val || !isNaN(val)) {
+                // Clamp to reasonable market price range
+                return Math.max(-100, Math.min(500, val));
+            }
+            return null;
         });
         
-        // Only add if we have valid data
-        if (chargeThresholds.some(v => v !== null)) {
+        // Only add if we have mostly valid data
+        const validCharge = chargeThresholds.filter(v => v !== null).length;
+        const validDischarge = dischargeThresholds.filter(v => v !== null).length;
+        
+        if (validCharge > chargeThresholds.length * 0.5) {
             datasets.push({
-                label: 'Charge Threshold',
+                label: 'Buy Below',
                 data: chargeThresholds,
-                borderColor: '#4A90E2',
+                borderColor: 'rgba(74, 144, 226, 0.5)',
                 backgroundColor: 'transparent',
                 borderWidth: 1,
-                borderDash: [5, 5],
+                borderDash: [3, 3],
                 pointRadius: 0,
-                tension: 0.1,
+                tension: 0.3,
                 order: 2,
                 spanGaps: true
             });
         }
         
-        if (dischargeThresholds.some(v => v !== null)) {
+        if (validDischarge > dischargeThresholds.length * 0.5) {
             datasets.push({
-                label: 'Discharge Threshold',
+                label: 'Sell Above',
                 data: dischargeThresholds,
-                borderColor: '#E94B3C',
+                borderColor: 'rgba(233, 75, 60, 0.5)',
                 backgroundColor: 'transparent',
                 borderWidth: 1,
-                borderDash: [5, 5],
+                borderDash: [3, 3],
                 pointRadius: 0,
-                tension: 0.1,
+                tension: 0.3,
                 order: 2,
                 spanGaps: true
             });
@@ -982,12 +1047,13 @@ function updatePriceChart(dayResult) {
                 dayResult.operations.forEach((op, index) => {
                     if (op.operation === 'charge' || op.operation === 'discharge') {
                         const x = xAxis.getPixelForValue(index);
-                        const width = Math.max(1, (xAxis.width / dayResult.operations.length));
+                        // Make bands wider for better visibility (3x width)
+                        const width = Math.max(3, (xAxis.width / dayResult.operations.length) * 3);
                         
                         if (op.operation === 'charge') {
-                            ctx.fillStyle = 'rgba(0, 232, 126, 0.2)';
+                            ctx.fillStyle = 'rgba(0, 232, 126, 0.3)';
                         } else {
-                            ctx.fillStyle = 'rgba(255, 107, 107, 0.2)';
+                            ctx.fillStyle = 'rgba(255, 107, 107, 0.3)';
                         }
                         
                         // Draw from top to bottom of chart area
