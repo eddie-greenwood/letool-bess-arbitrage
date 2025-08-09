@@ -1448,61 +1448,6 @@ function updatePriceChart(dayResult) {
 // function updateSoCChart(dayResult) {
 //     Removed - SoC is now integrated into price chart
 // }
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'State of Charge (%)',
-                data: socPercentage,
-                borderColor: GREENWOOD_COLORS.accent,
-                backgroundColor: `${GREENWOOD_COLORS.accent}20`,
-                borderWidth: 2,
-                pointRadius: 0,
-                tension: 0.1,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const soc = dayResult.socHistory[context.dataIndex];
-                            return [
-                                `SoC: ${context.parsed.y.toFixed(1)}%`,
-                                `Energy: ${soc.toFixed(1)} MWh`
-                            ];
-                        }
-                    }
-                }
-            },
-            scales: {
-                x: {
-                    display: true,
-                    ticks: {
-                        maxTicksLimit: 24,
-                        callback: function(val, index) {
-                            const hour = Math.floor(index / 12);
-                            return index % 12 === 0 ? `${hour}:00` : '';
-                        }
-                    }
-                },
-                y: {
-                    display: true,
-                    title: {
-                        display: true,
-                        text: 'State of Charge (%)'
-                    },
-                    min: 0,
-                    max: 100
-                }
-            }
-        }
-    });
-}
 
 /**
  * Update daily revenue chart
