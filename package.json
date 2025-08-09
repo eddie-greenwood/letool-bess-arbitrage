@@ -1,9 +1,10 @@
 {
-  "name": "bess-arbitrage-calculator",
-  "version": "1.0.0",
-  "description": "BESS Arbitrage Calculator using OpenNEM data",
+  "name": "letool-bess-arbitrage",
+  "version": "2.0.0",
+  "description": "Lé Tool - BESS Arbitrage Optimizer for Australian NEM",
   "scripts": {
-    "dev": "python3 -m http.server 8000",
+    "dev": "npx wrangler pages dev .",
+    "deploy": "npx wrangler pages deploy . --project-name=letool-bess-arbitrage",
     "build": "echo 'No build required for static site'"
   },
   "keywords": [
@@ -11,8 +12,14 @@
     "battery",
     "energy",
     "arbitrage",
-    "opennem"
+    "nem",
+    "aemo",
+    "optimization",
+    "dynamic-programming"
   ],
-  "author": "",
-  "license": "MIT"
+  "author": "Greenwood Energy",
+  "license": "Proprietary",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
 }

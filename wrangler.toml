@@ -1,11 +1,9 @@
-name = "letool-api"
-main = "worker-opennem.js"
+# Cloudflare Pages configuration
+# Note: This file is primarily for local development with wrangler pages dev
+# Production deployment is handled by Cloudflare Pages GitHub integration
+
+name = "letool-bess-arbitrage"
 compatibility_date = "2024-01-01"
 
-[env.production]
-name = "letool-api"
-
-# Bind the worker to a custom route if needed
-# routes = [
-#   { pattern = "api.letool.com/*", zone_name = "letool.com" }
-# ]
+# Pages Functions configuration is automatic
+# Functions are placed in /functions directory

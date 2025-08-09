@@ -1,12 +1,13 @@
 /* ============================================
  * LÉ TOOL - GREENWOOD ENERGY BESS DASHBOARD
- * Version: 1.0
+ * Version: 2.0
  * Powered by: Greenwood Energy
  * 
- * PRODUCTION READY VERSION
- * - OpenNEM API integration (public, no auth)
- * - Cloudflare Pages compatible
- * - GitHub deployable
+ * PRODUCTION VERSION
+ * - AEMO NEMWeb data integration via Cloudflare Pages Functions
+ * - Dynamic Programming (DP) and Heuristic optimization algorithms
+ * - Network tariff support (AusNet BESS trial tariffs)
+ * - Real-time market analysis and revenue optimization
  * ============================================ */
 
 // Brand colors for charts
@@ -449,7 +450,7 @@ async function analyzeOpportunity() {
 }
 
 /**
- * Fetch day data from OpenNEM API via Pages Functions
+ * Fetch day data from AEMO NEMWeb via Pages Functions
  */
 async function fetchDayData(date, region) {
     try {
@@ -468,8 +469,6 @@ async function fetchDayData(date, region) {
                 if (data.success && data.data && data.data.length > 0) {
                     document.getElementById('dataSource').textContent = 
                         data.source === 'aemo-nemweb' ? '🟢 LIVE data from AEMO NEMWeb' :
-                        data.source === 'opennem' ? '🟢 LIVE data from OpenNEM API' : 
-                        data.source === 'opennem-alt' ? '🟢 LIVE data from OpenNEM (alt)' :
                         '⚠️ SIMULATED data (API unavailable)';
                     document.getElementById('dataSource').style.display = 'block';
                     return data.data; // Return the intervals directly
@@ -477,37 +476,9 @@ async function fetchDayData(date, region) {
                     console.error('API error:', data.error);
                     throw new Error(data.error || 'API failed');
                 }
-                
-                // If data has the old format, try parsing it
-                let parsedData = parseOpenNEMData(data);
-                
-                if (parsedData && parsedData.length > 0) {
-                    document.getElementById('dataSource').textContent = 
-                        'Live data from OpenNEM API';
-                    return parsedData;
-                }
             }
         } catch (workerError) {
-            console.log('Worker API failed, trying direct:', workerError);
-        }
-        
-        // Fallback to direct API call (may fail due to CORS)
-        const directUrl = `https://api.opennem.org.au/stats/price/NEM/${region}?date=${date}`;
-        const resp = await fetch(directUrl);
-        
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        
-        const data = await resp.json();
-        let parsedData = parseOpenNEMData(data);
-        
-        if (parsedData && parsedData.length > 0) {
-            document.getElementById('dataSource').textContent = 
-                'Live data from OpenNEM API (direct)';
-            return parsedData;
-        } else {
-            document.getElementById('dataSource').textContent = 
-                'Using simulated data (no API data for this date)'
-            return simulateMarketData(date, region);
+            console.log('Worker API failed:', workerError);
         }
         
     } catch (error) {
@@ -515,48 +486,6 @@ async function fetchDayData(date, region) {
         document.getElementById('dataSource').textContent = 
             'Using simulated data (API unavailable)';
         return simulateMarketData(date, region);
-    }
-}
-
-/**
- * Parse OpenNEM API data format
- */
-function parseOpenNEMData(apiData) {
-    try {
-        if (!apiData || !apiData.data || !Array.isArray(apiData.data)) {
-            return null;
-        }
-        
-        const priceData = apiData.data.find(d => 
-            d.type === 'energy' || d.type === 'price' || d.id === 'price.spot'
-        );
-        
-        if (!priceData || !priceData.history || !priceData.history.data) {
-            return null;
-        }
-        
-        const prices = priceData.history.data;
-        const startTime = new Date(priceData.history.start);
-        const interval = priceData.history.interval === '5m' ? 5 : 30;
-        
-        const intervals = [];
-        prices.forEach((price, index) => {
-            if (price !== null && !isNaN(price)) {
-                const time = new Date(startTime.getTime() + index * interval * 60000);
-                intervals.push({
-                    time: `${String(time.getHours()).padStart(2, '0')}:${String(time.getMinutes()).padStart(2, '0')}`,
-                    hour: time.getHours(),
-                    minute: time.getMinutes(),
-                    price: parseFloat(price)
-                });
-            }
-        });
-        
-        return intervals.length >= 48 ? intervals : null;
-        
-    } catch (error) {
-        console.error('Error parsing OpenNEM data:', error);
-        return null;
     }
 }
 
