@@ -733,9 +733,6 @@
                 <button class="btn" onclick="analyzeOpportunity()">
                     Calculate Opportunity
                 </button>
-                <button class="btn btn-secondary" onclick="toggleExplainer()" style="display: none;" id="explainerToggle">
-                    📖 How It Works
-                </button>
             </div>
         </div>
 
@@ -880,45 +877,53 @@
         </div>
 
         <div class="info" id="algorithmExplainer" style="display: none; margin: 20px auto; max-width: 1200px;">
-            <h3 style="color: var(--greenwood-primary); margin-bottom: 15px;">🧠 How the Optimizer Works</h3>
+            <h3 style="color: var(--greenwood-primary); margin-bottom: 15px;">🧠 How Your Selected Optimizer Works</h3>
             
-            <h4 style="color: var(--greenwood-primary); margin-top: 15px;">Dynamic Programming Mode (Optimal)</h4>
-            <p style="margin-bottom: 10px;">
-                The <strong>Dynamic Programming (DP) optimizer</strong> finds the mathematically optimal trading strategy by working backwards from the end of the day:
-            </p>
-            <ul style="margin-left: 20px; margin-bottom: 15px;">
-                <li>• <strong>Perfect Foresight:</strong> Knows all prices in advance and finds the absolute best schedule</li>
-                <li>• <strong>Value Function:</strong> Calculates the future value of energy at each time and state</li>
-                <li>• <strong>Reservation Prices:</strong> The blue/red dotted lines show the "decision boundaries"</li>
-                <li style="margin-left: 20px;">→ <span style="color: #4A90E2;">Blue line:</span> Charge when price drops below this threshold</li>
-                <li style="margin-left: 20px;">→ <span style="color: #E94B3C;">Red line:</span> Discharge when price rises above this threshold</li>
-                <li>• <strong>Salvage Value:</strong> Values leftover energy at end of day (doesn't force battery to empty)</li>
-                <li>• <strong>Cycle Management:</strong> Automatically calibrates degradation cost to respect cycle limits</li>
-            </ul>
+            <div id="dpExplanation" style="display: none;">
+                <h4 style="color: var(--greenwood-primary); margin-top: 15px;">Dynamic Programming Mode (Currently Selected)</h4>
+                <p style="margin-bottom: 10px;">
+                    The <strong>Dynamic Programming (DP) optimizer</strong> finds the mathematically optimal trading strategy by working backwards from the end of the day:
+                </p>
+                <ul style="margin-left: 20px; margin-bottom: 15px;">
+                    <li>• <strong>Perfect Foresight:</strong> Knows all prices in advance and finds the absolute best schedule</li>
+                    <li>• <strong>Value Function:</strong> Calculates the future value of energy at each time and state</li>
+                    <li>• <strong>Reservation Prices:</strong> The blue/red lines show the "decision boundaries"</li>
+                    <li style="margin-left: 20px;">→ <span style="color: #4A90E2; font-weight: bold;">Blue line (Buy Below):</span> Charge when price drops below this threshold</li>
+                    <li style="margin-left: 20px;">→ <span style="color: #E94B3C; font-weight: bold;">Red line (Sell Above):</span> Discharge when price rises above this threshold</li>
+                    <li>• <strong>Salvage Value:</strong> Values leftover energy at end of day (doesn't force battery to empty)</li>
+                    <li>• <strong>Cycle Management:</strong> Automatically calibrates degradation cost to respect cycle limits</li>
+                </ul>
+                <p style="margin-top: 15px; padding: 10px; background: rgba(0, 232, 126, 0.1); border-radius: 8px;">
+                    💡 <strong>Pro Tip:</strong> The DP optimizer shows what's theoretically possible with perfect price knowledge. 
+                    Real-world returns will be lower due to forecast uncertainty, but this provides an upper bound for arbitrage value.
+                </p>
+            </div>
             
-            <h4 style="color: var(--greenwood-primary);">Heuristic Mode (Fast)</h4>
-            <p style="margin-bottom: 10px;">
-                The <strong>Heuristic optimizer</strong> uses a greedy algorithm that identifies the best price spreads:
-            </p>
-            <ul style="margin-left: 20px; margin-bottom: 15px;">
-                <li>• Scans for largest price differences (buy low, sell high)</li>
-                <li>• Selects non-overlapping charge/discharge windows</li>
-                <li>• Faster but may miss complex opportunities</li>
-                <li>• Good for quick estimates and real-time decisions</li>
-            </ul>
+            <div id="heuristicExplanation" style="display: none;">
+                <h4 style="color: var(--greenwood-primary); margin-top: 15px;">Heuristic Mode (Currently Selected)</h4>
+                <p style="margin-bottom: 10px;">
+                    The <strong>Heuristic optimizer</strong> uses a greedy algorithm that identifies the best price spreads:
+                </p>
+                <ul style="margin-left: 20px; margin-bottom: 15px;">
+                    <li>• <strong>Spread Detection:</strong> Scans for largest price differences (buy low, sell high)</li>
+                    <li>• <strong>Window Selection:</strong> Picks non-overlapping charge/discharge periods</li>
+                    <li>• <strong>Speed:</strong> Much faster than DP, suitable for real-time decisions</li>
+                    <li>• <strong>Trade-off:</strong> May miss complex opportunities that DP would find</li>
+                    <li>• <strong>No Reservation Prices:</strong> This mode doesn't show blue/red threshold lines</li>
+                </ul>
+                <p style="margin-top: 15px; padding: 10px; background: rgba(0, 232, 126, 0.1); border-radius: 8px;">
+                    💡 <strong>Pro Tip:</strong> Heuristic mode is good for quick estimates and when you need fast results. 
+                    It typically captures 85-95% of the DP optimal value.
+                </p>
+            </div>
             
-            <h4 style="color: var(--greenwood-primary);">Key Parameters</h4>
+            <h4 style="color: var(--greenwood-primary); margin-top: 20px;">Key Parameters (Both Modes)</h4>
             <ul style="margin-left: 20px;">
                 <li>• <strong>Round-trip Efficiency:</strong> Energy lost in charge/discharge cycle (typically 85-90%)</li>
                 <li>• <strong>Max Cycles:</strong> Limits daily throughput to preserve battery life</li>
                 <li>• <strong>Degradation Cost:</strong> $/MWh penalty for battery wear (auto-calibrated or manual)</li>
                 <li>• <strong>Min Run Time:</strong> Enforces realistic 15-minute minimum operations</li>
             </ul>
-            
-            <p style="margin-top: 15px; padding: 10px; background: rgba(0, 232, 126, 0.1); border-radius: 8px;">
-                💡 <strong>Pro Tip:</strong> The DP optimizer shows what's theoretically possible with perfect price knowledge. 
-                Real-world returns will be lower due to forecast uncertainty, but this provides an upper bound for arbitrage value.
-            </p>
         </div>
         
         <div class="footer">

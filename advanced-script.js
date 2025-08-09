@@ -294,14 +294,25 @@ async function analyzeOpportunity() {
         document.getElementById('metrics').style.display = 'grid';
         document.getElementById('navTabs').style.display = 'flex';
         
-        // Show algorithm explainer after results
+        // Show algorithm explainer after results with correct mode
         const explainer = document.getElementById('algorithmExplainer');
-        const explainerToggle = document.getElementById('explainerToggle');
         if (explainer) {
             explainer.style.display = 'block';
-        }
-        if (explainerToggle) {
-            explainerToggle.style.display = 'inline-block';
+            
+            // Show the correct explanation based on optimization mode
+            const optimizationMode = document.getElementById('optimizationMode').value;
+            const dpExplanation = document.getElementById('dpExplanation');
+            const heuristicExplanation = document.getElementById('heuristicExplanation');
+            
+            if (dpExplanation && heuristicExplanation) {
+                if (optimizationMode === 'dp') {
+                    dpExplanation.style.display = 'block';
+                    heuristicExplanation.style.display = 'none';
+                } else {
+                    dpExplanation.style.display = 'none';
+                    heuristicExplanation.style.display = 'block';
+                }
+            }
         }
         
         currentDayIndex = 0;
@@ -923,24 +934,6 @@ function navigateDay(direction) {
 // Make navigateDay globally available
 window.navigateDay = navigateDay;
 
-/**
- * Toggle algorithm explainer visibility
- */
-function toggleExplainer() {
-    const explainer = document.getElementById('algorithmExplainer');
-    if (explainer) {
-        if (explainer.style.display === 'none' || !explainer.style.display) {
-            explainer.style.display = 'block';
-            document.getElementById('explainerToggle').textContent = '📖 Hide Explanation';
-        } else {
-            explainer.style.display = 'none';
-            document.getElementById('explainerToggle').textContent = '📖 How It Works';
-        }
-    }
-}
-
-// Make toggleExplainer globally available
-window.toggleExplainer = toggleExplainer;
 
 /**
  * Update price chart
@@ -993,10 +986,10 @@ function updatePriceChart(dayResult) {
             datasets.push({
                 label: 'Buy Below',
                 data: chargeThresholds,
-                borderColor: 'rgba(74, 144, 226, 0.5)',
+                borderColor: '#4A90E2',  // Solid blue color
                 backgroundColor: 'transparent',
-                borderWidth: 1,
-                borderDash: [3, 3],
+                borderWidth: 2.5,  // Thicker line
+                borderDash: [8, 4],  // Longer dashes for better visibility
                 pointRadius: 0,
                 tension: 0.3,
                 order: 2,
@@ -1008,10 +1001,10 @@ function updatePriceChart(dayResult) {
             datasets.push({
                 label: 'Sell Above',
                 data: dischargeThresholds,
-                borderColor: 'rgba(233, 75, 60, 0.5)',
+                borderColor: '#E94B3C',  // Solid red color
                 backgroundColor: 'transparent',
-                borderWidth: 1,
-                borderDash: [3, 3],
+                borderWidth: 2.5,  // Thicker line
+                borderDash: [8, 4],  // Longer dashes for better visibility
                 pointRadius: 0,
                 tension: 0.3,
                 order: 2,
