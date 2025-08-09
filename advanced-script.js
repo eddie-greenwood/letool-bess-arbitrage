@@ -320,6 +320,7 @@ async function fetchDayData(date, region) {
                 // Check if we got valid data from Worker
                 if (data.success && data.data && data.data.length > 0) {
                     document.getElementById('dataSource').textContent = 
+                        data.source === 'aemo-nemweb' ? '🟢 LIVE data from AEMO NEMWeb' :
                         data.source === 'opennem' ? '🟢 LIVE data from OpenNEM API' : 
                         data.source === 'opennem-alt' ? '🟢 LIVE data from OpenNEM (alt)' :
                         '⚠️ SIMULATED data (API unavailable)';
