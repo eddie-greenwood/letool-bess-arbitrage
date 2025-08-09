@@ -328,6 +328,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize live price ticker
     initializeTicker();
     
+    // Initialize site mode handlers
+    initializeSiteModeHandlers();
+    
     // Set default dates (last 7 days)
     setTimePeriod('7d');
     
@@ -1836,9 +1839,6 @@ function updateResultsTable(results) {
     totalRow.insertCell(4).textContent = results.totalEnergy.toFixed(1) + ' MWh';
 }
 
-// Crypto prices cache
-let cryptoPrices = null;
-
 // Fetch crypto prices
 async function fetchCryptoPrices() {
     try {
@@ -1973,11 +1973,8 @@ function initializeTicker() {
     setInterval(fetchLivePrices, 60000);
 }
 
-// Site mode change handler and optimization mode handler
-document.addEventListener('DOMContentLoaded', function() {
-    // Initialize ticker
-    initializeTicker();
-    
+// Site mode change handler and optimization mode handler - moved to main DOMContentLoaded
+function initializeSiteModeHandlers() {
     const siteModeSelect = document.getElementById('siteMode');
     const tariffSelect = document.getElementById('tariff');
     const optimizationMode = document.getElementById('optimizationMode');
@@ -2020,4 +2017,4 @@ document.addEventListener('DOMContentLoaded', function() {
         // Trigger initial state
         optimizationMode.dispatchEvent(new Event('change'));
     }
-});
+}
