@@ -1,0 +1,11 @@
+/*
+  Access-Control-Allow-Origin: *
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Cache-Control: public, max-age=3600
+
+/api/*
+  Access-Control-Allow-Origin: *
+  Access-Control-Allow-Methods: GET, POST, OPTIONS
+  Access-Control-Allow-Headers: Content-Type
+  Cache-Control: no-cache

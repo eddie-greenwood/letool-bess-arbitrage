@@ -1,0 +1,8 @@
+# Cloudflare Pages redirects file
+# This ensures the site is accessible
+
+# API routes are handled by Functions
+/api/* /api/:splat 200
+
+# SPA fallback
+/* /index.html 200
