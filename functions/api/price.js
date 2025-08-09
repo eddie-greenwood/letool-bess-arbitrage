@@ -8,12 +8,15 @@ export async function onRequestGet({ request, env }) {
   console.log('API Key available:', !!API_KEY, 'From env:', !!env?.OE_API_KEY);
   
   // 1) Try OpenElectricity v4 API with authentication
+  // Note: BASIC plan doesn't support 'price' metric, skipping to NEMWeb
+  /*
   try {
     const start = `${date}T00:00:00+10:00`;
     const end = `${date}T23:59:59+10:00`;
     
-    const oeURL = `https://api.openelectricity.org.au/v4/data/network/nem` +
-                  `?metrics=price&interval=5m&date_start=${start}&date_end=${end}&primary_grouping=network_region`;
+    // BASIC plan only supports 'power' metric, not 'price'
+    const oeURL = `https://api.openelectricity.org.au/v4/data/network/NEM` +
+                  `?metrics=power&interval=5m&period=1d&primary_grouping=network_region`;
     
     console.log('Trying OpenElectricity v4:', oeURL);
     
@@ -70,13 +73,14 @@ export async function onRequestGet({ request, env }) {
   } catch (error) {
     console.log('OpenElectricity v4 failed:', error.message);
   }
+  */
 
   // 2) Try AEMO NEMWeb as fallback (public CSV data)
   try {
     console.log('Trying NEMWeb CSV fallback');
     
-    // Get current dispatch data from NEMWeb
-    const nemWebUrl = 'https://nemweb.com.au/Reports/Current/DispatchIS_Reports/';
+    // Get current dispatch data from NEMWeb (using HTTPS)
+    const nemWebUrl = 'https://www.nemweb.com.au/Reports/Current/DispatchIS_Reports/';
     const listResp = await fetch(nemWebUrl);
     
     if (listResp.ok) {
