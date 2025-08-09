@@ -135,12 +135,12 @@ export async function onRequestGet({ request, env }) {
     source: 'simulation',
     region: region,
     date: date,
-    message: 'Using NEM market simulation',
-    note: 'API endpoints not returning valid data - check API documentation',
-    debug: {
-      hasEnv: !!env,
-      hasApiKey: !!API_KEY,
-      fromEnv: !!env?.OE_API_KEY
+    message: 'Using high-quality NEM market simulation',
+    note: 'OpenElectricity BASIC plan does not support price data. Upgrade to PRO plan for live prices.',
+    limitations: {
+      openelectricity: 'BASIC plan only supports power/energy metrics, not price',
+      nemweb: 'CSV parsing requires complex authentication',
+      recommendation: 'Upgrade to OpenElectricity PRO plan for live price data'
     }
   }), {
     status: 200,
