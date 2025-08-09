@@ -1658,10 +1658,13 @@ function updateResultsTable(results) {
     totalRow.insertCell(4).textContent = results.totalEnergy.toFixed(1) + ' MWh';
 }
 
-// Site mode change handler
+// Site mode change handler and optimization mode handler
 document.addEventListener('DOMContentLoaded', function() {
     const siteModeSelect = document.getElementById('siteMode');
     const tariffSelect = document.getElementById('tariff');
+    const optimizationMode = document.getElementById('optimizationMode');
+    const maxCyclesInput = document.getElementById('maxCycles');
+    const throughputCostInput = document.getElementById('throughputCost');
     
     if (siteModeSelect && tariffSelect) {
         siteModeSelect.addEventListener('change', function() {
@@ -1674,5 +1677,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 tariffSelect.disabled = false;
             }
         });
+    }
+    
+    if (optimizationMode && maxCyclesInput) {
+        optimizationMode.addEventListener('change', function() {
+            if (this.value === 'dp') {
+                // DP mode: disable max cycles (it finds optimal automatically)
+                maxCyclesInput.disabled = true;
+                maxCyclesInput.title = 'Dynamic Programming finds optimal cycles automatically';
+                // Show throughput cost as the way to influence cycles
+                if (throughputCostInput) {
+                    throughputCostInput.title = 'Use degradation cost to reduce cycling (higher cost = fewer cycles)';
+                }
+            } else {
+                // Heuristic mode: enable max cycles constraint
+                maxCyclesInput.disabled = false;
+                maxCyclesInput.title = 'Maximum cycles per day constraint for heuristic optimizer';
+                if (throughputCostInput) {
+                    throughputCostInput.title = 'Cost per MWh of battery throughput to account for degradation';
+                }
+            }
+        });
+        
+        // Trigger initial state
+        optimizationMode.dispatchEvent(new Event('change'));
     }
 });
