@@ -76,6 +76,11 @@ function setTimePeriod(period, evt) {
     }
     
     switch(period) {
+        case 'yesterday':
+            // Set both start and end to yesterday
+            startDate.setDate(endDate.getDate() - 1);
+            endDate.setDate(endDate.getDate() - 1);
+            break;
         case '7d':
             startDate.setDate(endDate.getDate() - 6);
             break;
@@ -117,7 +122,14 @@ function updatePeriodButtons() {
     });
     
     // Check if it matches any preset period
-    if (daysDiff === 7) {
+    if (daysDiff === 1) {
+        // Check if it's actually yesterday
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        if (startDate.toDateString() === yesterday.toDateString()) {
+            document.querySelector('.period-btn[onclick*="yesterday"]')?.classList.add('active');
+        }
+    } else if (daysDiff === 7) {
         document.querySelector('.period-btn[onclick*="7d"]')?.classList.add('active');
     } else if (daysDiff === 14) {
         document.querySelector('.period-btn[onclick*="14d"]')?.classList.add('active');
