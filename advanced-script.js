@@ -127,7 +127,7 @@ function getTariffPeriod(timestamp, windows) {
 
 // Chart instances
 let priceChart = null;
-let socChart = null;
+// SoC chart removed - now integrated into price chart
 let dailyRevenueChart = null;
 let cumulativeChart = null;
 let utilizationChart = null;
@@ -1107,13 +1107,9 @@ function updateDailyView(dayIndex) {
     // Update chart titles with date information
     const chartDate = dayResult.date || `Day ${dayIndex + 1}`;
     const priceTitle = document.querySelector('#priceChartContainer .chart-title span');
-    const socTitle = document.querySelector('#socChartContainer .chart-title span');
     
     if (priceTitle) {
-        priceTitle.textContent = `Price Profile & Battery Operations - ${chartDate}`;
-    }
-    if (socTitle) {
-        socTitle.textContent = `Battery State of Charge (SoC) - ${chartDate}`;
+        priceTitle.textContent = `Price, Operations & State of Charge - ${chartDate}`;
     }
     
     // Add navigation if multiple days
@@ -1127,10 +1123,10 @@ function updateDailyView(dayIndex) {
     }
     
     updatePriceChart(dayResult);
-    updateSoCChart(dayResult);
+    // SoC is now included in the price chart
     
     document.getElementById('priceChartContainer').style.display = 'block';
-    document.getElementById('socChartContainer').style.display = 'block';
+    // SoC chart container has been removed
 }
 
 function addDailyRevenueBreakdown(dayResult) {
@@ -1446,19 +1442,12 @@ function updatePriceChart(dayResult) {
 }
 
 /**
- * Update State of Charge chart
+ * Update State of Charge chart - REMOVED
+ * SoC is now displayed as a white line in the price chart
  */
-function updateSoCChart(dayResult) {
-    const ctx = document.getElementById('socChart').getContext('2d');
-    
-    if (socChart) socChart.destroy();
-    
-    const labels = dayResult.operations.map(op => op.time);
-    const socData = dayResult.socHistory;
-    const maxCapacity = analysisResults.capacity * analysisResults.numUnits;
-    const socPercentage = socData.map(soc => (soc / maxCapacity) * 100);
-    
-    socChart = new Chart(ctx, {
+// function updateSoCChart(dayResult) {
+//     Removed - SoC is now integrated into price chart
+// }
         type: 'line',
         data: {
             labels: labels,
