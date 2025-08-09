@@ -1256,6 +1256,11 @@ function updatePriceChart(dayResult) {
     const labels = dayResult.operations.map(op => op.time);
     const prices = dayResult.operations.map(op => op.price);
     
+    // Calculate SoC percentage for the white line
+    const socData = dayResult.socHistory;
+    const maxCapacity = analysisResults.capacity * analysisResults.numUnits;
+    const socPercentage = socData.map(soc => (soc / maxCapacity) * 100);
+    
     const datasets = [{
         label: 'Market Price ($/MWh)',
         data: prices,
@@ -1264,7 +1269,20 @@ function updatePriceChart(dayResult) {
         borderWidth: 2,
         pointRadius: 0,
         tension: 0.1,
-        order: 1
+        order: 1,
+        yAxisID: 'y'
+    }, {
+        label: 'State of Charge (%)',
+        data: socPercentage,
+        borderColor: 'rgba(255, 255, 255, 0.8)',
+        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+        borderWidth: 2.5,
+        pointRadius: 0,
+        tension: 0.2,
+        fill: false,
+        order: 0,
+        yAxisID: 'y1',
+        borderDash: [5, 3]
     }];
     
     // Add reservation price bands if using DP optimization
@@ -1358,7 +1376,9 @@ function updatePriceChart(dayResult) {
                     }
                 },
                 y: {
+                    type: 'linear',
                     display: true,
+                    position: 'left',
                     title: {
                         display: true,
                         text: 'Price ($/MWh)'
@@ -1368,6 +1388,25 @@ function updatePriceChart(dayResult) {
                     ticks: {
                         callback: function(value) {
                             return '$' + value.toFixed(0);
+                        }
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: {
+                        display: true,
+                        text: 'SoC (%)'
+                    },
+                    min: 0,
+                    max: 100,
+                    grid: {
+                        drawOnChartArea: false
+                    },
+                    ticks: {
+                        callback: function(value) {
+                            return value + '%';
                         }
                     }
                 }

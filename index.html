@@ -571,12 +571,12 @@
             
             .btn {
                 width: 100%;
-                min-height: 48px; /* Touch target */
-                padding: 14px 20px;
-                font-size: 15px !important;
-                white-space: nowrap;
-                overflow: hidden;
-                text-overflow: ellipsis;
+                min-height: 44px; /* Touch target */
+                padding: 12px 16px;
+                font-size: 14px !important;
+                white-space: normal;
+                line-height: 1.2;
+                letter-spacing: 0.3px;
             }
             
             .time-period-buttons {
@@ -655,9 +655,10 @@
             
             .nav-tab {
                 flex-shrink: 0;
-                padding: 10px 15px;
-                font-size: 0.85rem;
+                padding: 8px 12px;
+                font-size: 0.75rem;
                 min-width: fit-content;
+                letter-spacing: 0.3px;
             }
             
             /* Charts */
@@ -747,8 +748,9 @@
             }
             
             .nav-tab {
-                padding: 8px 12px;
-                font-size: 0.8rem;
+                padding: 6px 10px;
+                font-size: 0.7rem;
+                letter-spacing: 0.2px;
             }
             
             .chart-wrapper {
@@ -1138,7 +1140,7 @@
 
             <div class="chart-container" id="priceChartContainer" style="display: none;">
                 <h3 class="chart-title">
-                    <span>Price Profile & Battery Operations</span>
+                    <span>Price, Operations & State of Charge</span>
                 </h3>
                 <div class="chart-wrapper">
                     <canvas id="priceChart"></canvas>
@@ -1149,20 +1151,24 @@
                         <span style="color: #ffffff;">Market Price</span>
                     </div>
                     <div class="legend-item">
+                        <div class="legend-color" style="background: none; border: 2px dashed rgba(255, 255, 255, 0.8);"></div>
+                        <span style="color: #ffffff;">State of Charge</span>
+                    </div>
+                    <div class="legend-item">
                         <div class="legend-color" style="background: rgba(0, 232, 126, 0.3);"></div>
-                        <span style="color: #ffffff;">Charging Period</span>
+                        <span style="color: #ffffff;">Charging</span>
                     </div>
                     <div class="legend-item">
                         <div class="legend-color" style="background: rgba(255, 107, 107, 0.3);"></div>
-                        <span style="color: #ffffff;">Discharging Period</span>
+                        <span style="color: #ffffff;">Discharging</span>
                     </div>
                     <div class="legend-item">
                         <div class="legend-color" style="background: none; border: 1px dashed #4A90E2;"></div>
-                        <span style="color: #ffffff;">Buy Below (Blue)</span>
+                        <span style="color: #ffffff;">Buy Below</span>
                     </div>
                     <div class="legend-item">
                         <div class="legend-color" style="background: none; border: 1px dashed #E94B3C;"></div>
-                        <span style="color: #ffffff;">Sell Above (Red)</span>
+                        <span style="color: #ffffff;">Sell Above</span>
                     </div>
                 </div>
             </div>
