@@ -296,8 +296,12 @@ async function analyzeOpportunity() {
         
         // Show algorithm explainer after results
         const explainer = document.getElementById('algorithmExplainer');
+        const explainerToggle = document.getElementById('explainerToggle');
         if (explainer) {
             explainer.style.display = 'block';
+        }
+        if (explainerToggle) {
+            explainerToggle.style.display = 'inline-block';
         }
         
         currentDayIndex = 0;
@@ -918,6 +922,25 @@ function navigateDay(direction) {
 
 // Make navigateDay globally available
 window.navigateDay = navigateDay;
+
+/**
+ * Toggle algorithm explainer visibility
+ */
+function toggleExplainer() {
+    const explainer = document.getElementById('algorithmExplainer');
+    if (explainer) {
+        if (explainer.style.display === 'none' || !explainer.style.display) {
+            explainer.style.display = 'block';
+            document.getElementById('explainerToggle').textContent = '📖 Hide Explanation';
+        } else {
+            explainer.style.display = 'none';
+            document.getElementById('explainerToggle').textContent = '📖 How It Works';
+        }
+    }
+}
+
+// Make toggleExplainer globally available
+window.toggleExplainer = toggleExplainer;
 
 /**
  * Update price chart
