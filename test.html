@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lé Tool - Connection Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .test {
+            margin: 20px 0;
+            padding: 15px;
+            border: 2px solid #333;
+            border-radius: 8px;
+        }
+        .success { border-color: #00E87E; background: rgba(0,232,126,0.1); }
+        .error { border-color: #ff4444; background: rgba(255,68,68,0.1); }
+        .pending { border-color: #ffc107; background: rgba(255,193,7,0.1); }
+        h1 { color: #00E87E; }
+        button {
+            background: #00E87E;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background: #00FF8C; }
+        pre {
+            background: #000;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔧 Lé Tool - Deployment Test</h1>
+    
+    <div class="test pending" id="basic">
+        <h3>Basic Page Load</h3>
+        <p>Status: <span id="basicStatus">Testing...</span></p>
+    </div>
+
+    <div class="test pending" id="api">
+        <h3>API Connection</h3>
+        <p>Status: <span id="apiStatus">Testing...</span></p>
+        <pre id="apiResponse"></pre>
+    </div>
+
+    <div class="test pending" id="price">
+        <h3>Price Data API</h3>
+        <p>Status: <span id="priceStatus">Testing...</span></p>
+        <pre id="priceResponse"></pre>
+    </div>
+
+    <div class="test pending" id="scripts">
+        <h3>External Scripts</h3>
+        <p>Chart.js: <span id="chartStatus">Loading...</span></p>
+        <p>Date-fns: <span id="dateStatus">Loading...</span></p>
+    </div>
+
+    <div class="test pending" id="console">
+        <h3>Console Errors</h3>
+        <pre id="consoleErrors">No errors detected</pre>
+    </div>
+
+    <button onclick="runTests()">Run Tests Again</button>
+    <button onclick="window.location.href='index.html'">Go to Main App</button>
+
+    <script>
+        let errors = [];
+        
+        // Capture console errors
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            errors.push(`${msg} at ${url}:${lineNo}:${columnNo}`);
+            document.getElementById('consoleErrors').textContent = errors.join('\n');
+            document.getElementById('console').className = 'test error';
+            return false;
+        };
+
+        async function runTests() {
+            errors = [];
+            
+            // Test 1: Basic page load
+            document.getElementById('basic').className = 'test success';
+            document.getElementById('basicStatus').textContent = '✅ Page loaded successfully';
+            
+            // Test 2: API Connection
+            try {
+                const response = await fetch('/api/test');
+                const data = await response.json();
+                document.getElementById('api').className = 'test success';
+                document.getElementById('apiStatus').textContent = '✅ API working';
+                document.getElementById('apiResponse').textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                document.getElementById('api').className = 'test error';
+                document.getElementById('apiStatus').textContent = '❌ API failed';
+                document.getElementById('apiResponse').textContent = e.toString();
+            }
+            
+            // Test 3: Price Data
+            try {
+                const response = await fetch('/api/price?region=VIC1&date=2025-08-08');
+                const data = await response.json();
+                document.getElementById('price').className = 'test success';
+                document.getElementById('priceStatus').textContent = `✅ Got ${data.dataPoints || 0} price points`;
+                document.getElementById('priceResponse').textContent = JSON.stringify({
+                    success: data.success,
+                    source: data.source,
+                    dataPoints: data.dataPoints,
+                    region: data.region
+                }, null, 2);
+            } catch (e) {
+                document.getElementById('price').className = 'test error';
+                document.getElementById('priceStatus').textContent = '❌ Price API failed';
+                document.getElementById('priceResponse').textContent = e.toString();
+            }
+            
+            // Test 4: External Scripts
+            if (typeof Chart !== 'undefined') {
+                document.getElementById('chartStatus').textContent = '✅ Loaded';
+            } else {
+                document.getElementById('chartStatus').textContent = '❌ Not loaded';
+                document.getElementById('scripts').className = 'test error';
+            }
+            
+            if (typeof dateFns !== 'undefined') {
+                document.getElementById('dateStatus').textContent = '✅ Loaded';
+            } else {
+                document.getElementById('dateStatus').textContent = '❌ Not loaded';
+                document.getElementById('scripts').className = 'test error';
+            }
+            
+            if (typeof Chart !== 'undefined' && typeof dateFns !== 'undefined') {
+                document.getElementById('scripts').className = 'test success';
+            }
+            
+            // Test 5: Console errors
+            if (errors.length === 0) {
+                document.getElementById('console').className = 'test success';
+            }
+        }
+        
+        // Load external scripts
+        const chartScript = document.createElement('script');
+        chartScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js';
+        chartScript.onload = () => runTests();
+        document.head.appendChild(chartScript);
+        
+        const dateScript = document.createElement('script');
+        dateScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/date-fns/2.29.3/index.min.js';
+        dateScript.onload = () => runTests();
+        document.head.appendChild(dateScript);
+        
+        // Run tests on load
+        window.addEventListener('load', runTests);
+    </script>
+</body>
+</html>
