@@ -759,14 +759,34 @@
 
         <div class="metrics" id="metrics" style="display: none;">
             <div class="metric-card highlight">
-                <div class="metric-label">Total Opportunity</div>
+                <div class="metric-label">Net Revenue</div>
                 <div class="metric-value money" id="totalRevenue">$0</div>
-                <div class="metric-unit">AUD total</div>
+                <div class="metric-unit">After all charges</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Wholesale Revenue</div>
+                <div class="metric-value" id="wholesaleRevenue">$0</div>
+                <div class="metric-unit">Energy arbitrage</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Network Charges</div>
+                <div class="metric-value" id="networkCharges">$0</div>
+                <div class="metric-unit">Import/Export</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Standing Charges</div>
+                <div class="metric-value" id="standingCharges">$0</div>
+                <div class="metric-unit">Fixed daily</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Demand Charges</div>
+                <div class="metric-value" id="demandCharges">$0</div>
+                <div class="metric-unit">Peak kVA</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Daily Average</div>
                 <div class="metric-value" id="avgDaily">$0</div>
-                <div class="metric-unit">AUD per day</div>
+                <div class="metric-unit">Net per day</div>
             </div>
             <div class="metric-card">
                 <div class="metric-label">Total Energy</div>
@@ -786,7 +806,12 @@
             <div class="metric-card">
                 <div class="metric-label">Annualized</div>
                 <div class="metric-value money" id="annualRevenue">$0</div>
-                <div class="metric-unit">AUD per year</div>
+                <div class="metric-unit">Net per year</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Active Tariff</div>
+                <div class="metric-value" id="activeTariff" style="font-size: 1rem;">None</div>
+                <div class="metric-unit">Network charges</div>
             </div>
         </div>
 

@@ -807,6 +807,13 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
     let totalCostOfCharging = 0;
     let totalRevenueFromDischarging = 0;
     
+    // Track revenue breakdown for tariffs
+    let wholesaleRevenue = 0;
+    let networkCharges = 0;
+    let standingCharge = 0;
+    let demandCharges = 0;
+    const peakDemand = { solarSoak: 0, peak: 0, offPeak: 0 };
+    
     // Create operation schedule
     const schedule = new Array(intervals).fill('idle');
     for (const opp of opportunities) {
@@ -825,6 +832,11 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
         let powerFlow = 0;
         const operation = schedule[i];
         
+        // Get tariff period and network charges
+        const period = tariff ? getTariffPeriod(data[i].timestamp || new Date(), tariff.windows) : 'offPeak';
+        const importAdj = tariff ? cPerKwhToDollarPerMWh(tariff.energy_c_per_kwh.import[period]) : 0;
+        const exportAdj = tariff ? cPerKwhToDollarPerMWh(tariff.energy_c_per_kwh.export[period]) : 0;
+        
         if (operation === 'charge' && soc < totalCapacity) {
             // FIX: Charge with efficiency loss
             // Grid provides energy, battery receives less due to charge efficiency
@@ -841,6 +853,16 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
                 revenue -= chargeCost;
                 totalCostOfCharging += chargeCost;
                 energyCharged += gridEnergy;  // Track grid-side energy
+                
+                // Track wholesale and network charges
+                wholesaleRevenue -= chargeCost;  // Wholesale cost
+                networkCharges += gridEnergy * importAdj;  // Network import cost
+                
+                // Track peak demand for this period
+                const powerMW = Math.abs(powerFlow);
+                if (powerMW > peakDemand[period]) {
+                    peakDemand[period] = powerMW;
+                }
             }
         } else if (operation === 'discharge' && soc > 0.001) {
             // FIX: Discharge with efficiency loss
@@ -858,6 +880,10 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
                 revenue += dischargeRevenue;
                 totalRevenueFromDischarging += dischargeRevenue;
                 energyDischarged += gridEnergy;  // Track grid-side energy
+                
+                // Track wholesale and network charges
+                wholesaleRevenue += dischargeRevenue;  // Wholesale revenue
+                networkCharges += gridEnergy * exportAdj;  // Network export (usually negative = credit)
             }
         }
         
@@ -866,7 +892,8 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
             ...data[i],
             soc: soc,
             powerFlow: powerFlow,
-            operation: operation === 'idle' ? 'neutral' : operation
+            operation: operation === 'idle' ? 'neutral' : operation,
+            tariffPeriod: period
         });
     }
     
@@ -900,8 +927,37 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
     // FIX: Correct efficiency accounting
     const effectiveSpread = avgDischargePrice * efficiency - avgChargePrice;
     
+    // Calculate standing charge (pro-rated per day)
+    if (tariff && tariff.standing_per_year > 0) {
+        standingCharge = tariff.standing_per_year / 365;
+    }
+    
+    // Calculate demand charges ($/kVA/month pro-rated)
+    if (tariff && tariff.demand_per_kva_month) {
+        const powerFactor = 0.95;  // Assumed power factor
+        Object.keys(peakDemand).forEach(period => {
+            const peakKVA = (peakDemand[period] * 1000) / powerFactor;  // Convert MW to kVA
+            const monthlyCharge = peakKVA * (tariff.demand_per_kva_month.import[period] || 0);
+            demandCharges += monthlyCharge / 30;  // Daily pro-rata
+        });
+    }
+    
+    // Calculate total revenue including all charges
+    const totalRevenue = wholesaleRevenue - networkCharges - standingCharge - demandCharges;
+    
     return {
-        revenue: revenue,
+        revenue: totalRevenue,  // Net revenue after all charges
+        wholesaleRevenue: wholesaleRevenue,  // Wholesale only
+        networkCharges: networkCharges,  // Network energy charges
+        standingCharge: standingCharge,  // Daily standing charge
+        demandCharges: demandCharges,  // Demand-based charges
+        breakdown: {
+            wholesale: wholesaleRevenue,
+            network: -networkCharges,  // Negative because charges reduce revenue
+            standing: -standingCharge,
+            demand: -demandCharges,
+            total: totalRevenue
+        },
         cycles: actualCycles,
         avgSpread: effectiveSpread,  // This is the true profit margin per MWh
         avgChargePrice: avgChargePrice,
@@ -909,7 +965,8 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
         energyTraded: energyCharged + energyDischarged,
         operations: operations,
         socHistory: socHistory,
-        efficiency: efficiency
+        efficiency: efficiency,
+        tariff: tariff ? tariff.label : 'None'
     };
 }
 
@@ -1016,8 +1073,57 @@ function findBestArbitrageOpportunities(data, efficiency, maxCycles, totalCapaci
  * Update metrics display
  */
 function updateMetrics(results) {
+    // Calculate aggregated breakdown across all days
+    let totalWholesale = 0;
+    let totalNetwork = 0;
+    let totalStanding = 0;
+    let totalDemand = 0;
+    
+    if (results.dailyResults && results.dailyResults.length > 0) {
+        results.dailyResults.forEach(day => {
+            if (day.wholesaleRevenue !== undefined) {
+                totalWholesale += day.wholesaleRevenue;
+                totalNetwork += day.networkCharges || 0;
+                totalStanding += day.standingCharge || 0;
+                totalDemand += day.demandCharges || 0;
+            } else {
+                // Fallback for days without breakdown (older format)
+                totalWholesale += day.revenue;
+            }
+        });
+    }
+    
+    // Update main revenue metrics
     document.getElementById('totalRevenue').textContent = 
         '$' + results.totalRevenue.toLocaleString('en-AU', { maximumFractionDigits: 0 });
+    
+    // Update revenue breakdown
+    const wholesaleElem = document.getElementById('wholesaleRevenue');
+    const networkElem = document.getElementById('networkCharges');
+    const standingElem = document.getElementById('standingCharges');
+    const demandElem = document.getElementById('demandCharges');
+    
+    if (wholesaleElem) {
+        wholesaleElem.textContent = '$' + totalWholesale.toLocaleString('en-AU', { maximumFractionDigits: 0 });
+        wholesaleElem.style.color = totalWholesale > 0 ? '#00E87E' : '#ff4444';
+    }
+    
+    if (networkElem) {
+        networkElem.textContent = '$' + totalNetwork.toLocaleString('en-AU', { maximumFractionDigits: 0 });
+        networkElem.style.color = totalNetwork > 0 ? '#ff4444' : '#00E87E';  // Usually a cost
+    }
+    
+    if (standingElem) {
+        standingElem.textContent = '$' + totalStanding.toLocaleString('en-AU', { maximumFractionDigits: 0 });
+        standingElem.style.color = totalStanding > 0 ? '#ff4444' : '#999';  // Always a cost
+    }
+    
+    if (demandElem) {
+        demandElem.textContent = '$' + totalDemand.toLocaleString('en-AU', { maximumFractionDigits: 0 });
+        demandElem.style.color = totalDemand > 0 ? '#ff4444' : '#999';  // Always a cost
+    }
+    
+    // Update other metrics
     document.getElementById('avgDaily').textContent = 
         '$' + results.avgDaily.toLocaleString('en-AU', { maximumFractionDigits: 0 });
     document.getElementById('totalEnergy').textContent = 
@@ -1032,6 +1138,17 @@ function updateMetrics(results) {
     const annualized = results.avgDaily * 365;
     document.getElementById('annualRevenue').textContent = 
         '$' + annualized.toLocaleString('en-AU', { maximumFractionDigits: 0 });
+    
+    // Update active tariff display
+    const tariffElem = document.getElementById('activeTariff');
+    if (tariffElem) {
+        const tariffId = document.getElementById('tariff').value;
+        const tariff = TARIFFS[tariffId];
+        if (tariff) {
+            tariffElem.textContent = tariff.label;
+            tariffElem.style.color = tariffId === 'NONE' ? '#999' : '#00E87E';
+        }
+    }
 }
 
 /**
@@ -1075,11 +1192,90 @@ function updateDailyView(dayIndex) {
         addDayNavigation(dayIndex);
     }
     
+    // Add daily revenue breakdown if tariff is active
+    if (dayResult.breakdown) {
+        addDailyRevenueBreakdown(dayResult);
+    }
+    
     updatePriceChart(dayResult);
     updateSoCChart(dayResult);
     
     document.getElementById('priceChartContainer').style.display = 'block';
     document.getElementById('socChartContainer').style.display = 'block';
+}
+
+function addDailyRevenueBreakdown(dayResult) {
+    const container = document.getElementById('priceChartContainer');
+    let breakdown = document.getElementById('dailyRevenueBreakdown');
+    
+    if (!breakdown) {
+        breakdown = document.createElement('div');
+        breakdown.id = 'dailyRevenueBreakdown';
+        breakdown.style.cssText = `
+            background: linear-gradient(135deg, rgba(0, 232, 126, 0.05), rgba(0, 232, 126, 0.1));
+            border: 2px solid var(--greenwood-primary);
+            border-radius: 10px;
+            padding: 15px;
+            margin: 20px 0;
+            color: white;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        `;
+        // Insert after title but before chart
+        const chartWrapper = container.querySelector('.chart-wrapper');
+        container.insertBefore(breakdown, chartWrapper);
+    }
+    
+    // Format breakdown display
+    let html = '';
+    
+    if (dayResult.breakdown) {
+        html = `
+            <div style="text-align: center;">
+                <div style="font-size: 0.9rem; color: #999; margin-bottom: 5px;">Wholesale</div>
+                <div style="font-size: 1.2rem; font-weight: bold; color: ${dayResult.breakdown.wholesale > 0 ? '#00E87E' : '#ff4444'};">
+                    $${dayResult.breakdown.wholesale.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
+                </div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 0.9rem; color: #999; margin-bottom: 5px;">Network</div>
+                <div style="font-size: 1.2rem; font-weight: bold; color: ${dayResult.breakdown.network < 0 ? '#ff4444' : '#00E87E'};">
+                    $${dayResult.breakdown.network.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
+                </div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 0.9rem; color: #999; margin-bottom: 5px;">Standing</div>
+                <div style="font-size: 1.2rem; font-weight: bold; color: ${dayResult.breakdown.standing < 0 ? '#ff4444' : '#999'};">
+                    $${dayResult.breakdown.standing.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
+                </div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 0.9rem; color: #999; margin-bottom: 5px;">Demand</div>
+                <div style="font-size: 1.2rem; font-weight: bold; color: ${dayResult.breakdown.demand < 0 ? '#ff4444' : '#999'};">
+                    $${dayResult.breakdown.demand.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
+                </div>
+            </div>
+            <div style="text-align: center; border-left: 2px solid #333; padding-left: 15px;">
+                <div style="font-size: 0.9rem; color: #999; margin-bottom: 5px;">Net Revenue</div>
+                <div style="font-size: 1.4rem; font-weight: bold; color: ${dayResult.breakdown.total > 0 ? '#00E87E' : '#ff4444'};">
+                    $${dayResult.breakdown.total.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
+                </div>
+            </div>
+        `;
+    } else {
+        // Simple display for no tariff
+        html = `
+            <div style="text-align: center; grid-column: 1 / -1;">
+                <div style="font-size: 0.9rem; color: #999; margin-bottom: 5px;">Day Revenue (Wholesale Only)</div>
+                <div style="font-size: 1.4rem; font-weight: bold; color: #00E87E;">
+                    $${dayResult.revenue.toLocaleString('en-AU', { maximumFractionDigits: 0 })}
+                </div>
+            </div>
+        `;
+    }
+    
+    breakdown.innerHTML = html;
 }
 
 function addDayNavigation(currentIndex) {
