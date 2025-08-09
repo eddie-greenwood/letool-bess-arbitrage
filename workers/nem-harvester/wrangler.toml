@@ -1,0 +1,28 @@
+name = "nem-harvester"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+node_compat = true
+
+[triggers]
+crons = ["*/2 * * * *"]   # every 2 minutes for live updates
+
+[[r2_buckets]]
+binding = "NEM_R2"
+bucket_name = "nem-data"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nem-meta"
+database_id = "YOUR_D1_DATABASE_ID"
+
+[[queues.producers]]
+binding = "BACKFILL_QUEUE"
+queue = "nem-backfill"
+
+[[queues.consumers]]
+queue = "nem-backfill"
+max_batch_size = 5
+max_wait_time_ms = 5000
+
+[vars]
+ADMIN_SECRET = "YOUR_ADMIN_SECRET_HERE"

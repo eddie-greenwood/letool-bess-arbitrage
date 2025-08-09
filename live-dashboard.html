@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lé Tool - Live Trading Dashboard</title>
+    <style>
+        :root {
+            --greenwood-primary: #00E87E;
+            --greenwood-dark: #000000;
+            --greenwood-light: #00FF8C;
+            --greenwood-accent: #00C96A;
+            --text-primary: #E0E0E0;
+            --text-secondary: #B0B0B0;
+            --bg-primary: #0A0A0A;
+            --bg-secondary: #141414;
+            --bg-card: #1A1A1A;
+            --border-color: #2A2A2A;
+            --error: #FF4444;
+            --warning: #FFA500;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .header {
+            background: var(--bg-secondary);
+            border-bottom: 2px solid var(--greenwood-primary);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--greenwood-primary);
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.live {
+            background: var(--greenwood-primary);
+        }
+
+        .status-dot.offline {
+            background: var(--error);
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+            padding: 1rem;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .card-title {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--greenwood-primary);
+        }
+
+        .metric-delta {
+            font-size: 0.9rem;
+            margin-left: 0.5rem;
+        }
+
+        .metric-delta.positive {
+            color: var(--greenwood-primary);
+        }
+
+        .metric-delta.negative {
+            color: var(--error);
+        }
+
+        .chart-container {
+            grid-column: span 2;
+            height: 400px;
+            position: relative;
+        }
+
+        .strategy-selector {
+            grid-column: span 3;
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .strategy-card {
+            flex: 1;
+            min-width: 200px;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .strategy-card:hover {
+            border-color: var(--greenwood-primary);
+        }
+
+        .strategy-card.active {
+            border-color: var(--greenwood-primary);
+            background: rgba(0, 232, 126, 0.1);
+        }
+
+        .strategy-name {
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        .strategy-performance {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+        }
+
+        .controls {
+            grid-column: span 3;
+            display: flex;
+            gap: 1rem;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            background: var(--greenwood-primary);
+            color: var(--greenwood-dark);
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        .btn:hover {
+            background: var(--greenwood-accent);
+        }
+
+        .btn.secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+
+        .input-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        select, input {
+            padding: 0.5rem;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+
+        .leaderboard {
+            grid-column: span 1;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem;
+            margin-bottom: 0.5rem;
+            background: var(--bg-secondary);
+            border-radius: 4px;
+        }
+
+        .leaderboard-rank {
+            font-weight: bold;
+            color: var(--greenwood-primary);
+        }
+
+        .log-container {
+            grid-column: span 3;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.85rem;
+            background: var(--bg-secondary);
+            padding: 0.5rem;
+            border-radius: 4px;
+        }
+
+        .log-entry {
+            margin-bottom: 0.25rem;
+            opacity: 0.8;
+        }
+
+        .log-entry.error {
+            color: var(--error);
+        }
+
+        .log-entry.success {
+            color: var(--greenwood-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">Lé Tool - Live Trading</div>
+        <div class="status-indicator">
+            <span id="status-text">Connecting...</span>
+            <div class="status-dot offline" id="status-dot"></div>
+        </div>
+    </div>
+
+    <div class="dashboard">
+        <!-- Controls -->
+        <div class="controls">
+            <div class="input-group">
+                <label>Region:</label>
+                <select id="region-select">
+                    <option value="VIC1">Victoria</option>
+                    <option value="NSW1">New South Wales</option>
+                    <option value="QLD1">Queensland</option>
+                    <option value="SA1">South Australia</option>
+                    <option value="TAS1">Tasmania</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Battery:</label>
+                <select id="battery-config">
+                    <option value="small">20MW/20MWh</option>
+                    <option value="medium">50MW/100MWh</option>
+                    <option value="large">100MW/200MWh</option>
+                </select>
+            </div>
+            <button class="btn" onclick="runBacktest()">Run Backtest</button>
+            <button class="btn secondary" onclick="toggleLive()">Toggle Live</button>
+        </div>
+
+        <!-- Strategy Selector -->
+        <div class="strategy-selector">
+            <div class="strategy-card active" data-strategy="perfect">
+                <div class="strategy-name">Perfect Hindsight</div>
+                <div class="strategy-performance">
+                    <span>Benchmark</span>
+                    <span class="revenue">$0</span>
+                </div>
+            </div>
+            <div class="strategy-card" data-strategy="threshold">
+                <div class="strategy-name">Price Threshold</div>
+                <div class="strategy-performance">
+                    <span>Simple</span>
+                    <span class="revenue">$0</span>
+                </div>
+            </div>
+            <div class="strategy-card" data-strategy="spread">
+                <div class="strategy-name">MA Spread</div>
+                <div class="strategy-performance">
+                    <span>Adaptive</span>
+                    <span class="revenue">$0</span>
+                </div>
+            </div>
+            <div class="strategy-card" data-strategy="custom">
+                <div class="strategy-name">Your Strategy</div>
+                <div class="strategy-performance">
+                    <span>Custom</span>
+                    <span class="revenue">$0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Live Metrics -->
+        <div class="card">
+            <div class="card-title">Current Price</div>
+            <div class="metric-value" id="current-price">$0.00</div>
+            <span class="metric-delta positive" id="price-delta">↑ $0.00</span>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Today's Revenue</div>
+            <div class="metric-value" id="today-revenue">$0</div>
+            <span class="metric-delta" id="revenue-delta">vs Perfect: 0%</span>
+        </div>
+
+        <div class="card">
+            <div class="card-title">State of Charge</div>
+            <div class="metric-value" id="soc">0%</div>
+            <span class="metric-delta" id="soc-action">HOLD</span>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Cycles Today</div>
+            <div class="metric-value" id="cycles">0.00</div>
+            <span class="metric-delta" id="cycles-target">Target: 2.0</span>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Realized Spread</div>
+            <div class="metric-value" id="spread">$0.00</div>
+            <span class="metric-delta" id="spread-avg">/MWh</span>
+        </div>
+
+        <div class="card">
+            <div class="card-title">Win Rate</div>
+            <div class="metric-value" id="win-rate">0%</div>
+            <span class="metric-delta" id="win-count">0/0</span>
+        </div>
+
+        <!-- Charts -->
+        <div class="card chart-container">
+            <div class="card-title">Price & Actions</div>
+            <canvas id="price-chart"></canvas>
+        </div>
+
+        <div class="card chart-container">
+            <div class="card-title">Cumulative Performance</div>
+            <canvas id="performance-chart"></canvas>
+        </div>
+
+        <!-- Leaderboard -->
+        <div class="card leaderboard">
+            <div class="card-title">Strategy Leaderboard (Today)</div>
+            <div id="leaderboard">
+                <div class="leaderboard-item">
+                    <span class="leaderboard-rank">#1</span>
+                    <span>Perfect</span>
+                    <span>$0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Activity Log -->
+        <div class="log-container" id="activity-log">
+            <div class="log-entry">System initialized...</div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // Configuration
+        const API_BASE = 'https://nem-harvester.YOUR_SUBDOMAIN.workers.dev';
+        const BACKTEST_API = 'https://backtest-engine.YOUR_SUBDOMAIN.workers.dev';
+        
+        // State
+        let liveMode = false;
+        let currentRegion = 'VIC1';
+        let currentStrategy = 'threshold';
+        let socket = null;
+        let charts = {};
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            initCharts();
+            connectToLive();
+            loadStrategies();
+            
+            // Strategy card click handlers
+            document.querySelectorAll('.strategy-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    document.querySelectorAll('.strategy-card').forEach(c => c.classList.remove('active'));
+                    card.classList.add('active');
+                    currentStrategy = card.dataset.strategy;
+                    log(`Switched to ${currentStrategy} strategy`);
+                });
+            });
+        });
+        
+        function initCharts() {
+            // Price chart
+            const priceCtx = document.getElementById('price-chart').getContext('2d');
+            charts.price = new Chart(priceCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Price',
+                        data: [],
+                        borderColor: '#00E87E',
+                        backgroundColor: 'rgba(0, 232, 126, 0.1)',
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            grid: { color: '#2A2A2A' },
+                            ticks: { color: '#B0B0B0' }
+                        },
+                        x: {
+                            grid: { color: '#2A2A2A' },
+                            ticks: { color: '#B0B0B0' }
+                        }
+                    }
+                }
+            });
+            
+            // Performance chart
+            const perfCtx = document.getElementById('performance-chart').getContext('2d');
+            charts.performance = new Chart(perfCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        {
+                            label: 'Your Strategy',
+                            data: [],
+                            borderColor: '#00E87E',
+                            backgroundColor: 'transparent',
+                            tension: 0.1
+                        },
+                        {
+                            label: 'Perfect Hindsight',
+                            data: [],
+                            borderColor: '#FFA500',
+                            backgroundColor: 'transparent',
+                            borderDash: [5, 5],
+                            tension: 0.1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { 
+                            display: true,
+                            labels: { color: '#B0B0B0' }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            grid: { color: '#2A2A2A' },
+                            ticks: { color: '#B0B0B0' }
+                        },
+                        x: {
+                            grid: { color: '#2A2A2A' },
+                            ticks: { color: '#B0B0B0' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        async function connectToLive() {
+            // For now, poll the API every 60 seconds
+            // In production, use WebSocket or Server-Sent Events
+            
+            setInterval(async () => {
+                if (!liveMode) return;
+                
+                try {
+                    const response = await fetch(`${API_BASE}/api/latest?region=${currentRegion}`);
+                    const data = await response.json();
+                    
+                    updateLiveMetrics(data);
+                    
+                    document.getElementById('status-text').textContent = 'Live';
+                    document.getElementById('status-dot').classList.remove('offline');
+                    document.getElementById('status-dot').classList.add('live');
+                    
+                } catch (error) {
+                    console.error('Failed to fetch live data:', error);
+                    document.getElementById('status-text').textContent = 'Offline';
+                    document.getElementById('status-dot').classList.remove('live');
+                    document.getElementById('status-dot').classList.add('offline');
+                }
+            }, 60000); // Every 60 seconds
+        }
+        
+        function updateLiveMetrics(data) {
+            // Update current price
+            const price = data.price || 0;
+            document.getElementById('current-price').textContent = `$${price.toFixed(2)}`;
+            
+            // Update price chart
+            const now = new Date().toLocaleTimeString();
+            charts.price.data.labels.push(now);
+            charts.price.data.datasets[0].data.push(price);
+            
+            // Keep only last 50 points
+            if (charts.price.data.labels.length > 50) {
+                charts.price.data.labels.shift();
+                charts.price.data.datasets[0].data.shift();
+            }
+            
+            charts.price.update();
+            
+            log(`Price update: $${price.toFixed(2)}/MWh`, 'success');
+        }
+        
+        async function runBacktest() {
+            const region = document.getElementById('region-select').value;
+            const batteryConfig = document.getElementById('battery-config').value;
+            
+            const configs = {
+                small: { powerMW: 20, capacityMWh: 20 },
+                medium: { powerMW: 50, capacityMWh: 100 },
+                large: { powerMW: 100, capacityMWh: 200 }
+            };
+            
+            const battery = configs[batteryConfig];
+            
+            log(`Starting backtest for ${region} with ${batteryConfig} battery...`);
+            
+            try {
+                const response = await fetch(`${BACKTEST_API}/api/backtest/run`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        strategyId: currentStrategy,
+                        region,
+                        startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                        endDate: new Date().toISOString().split('T')[0],
+                        battery: { ...battery, efficiency: 0.9 }
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    log(`Backtest started: ${result.runId}`, 'success');
+                    pollBacktestResults(result.runId);
+                } else {
+                    log(`Backtest failed: ${result.error}`, 'error');
+                }
+                
+            } catch (error) {
+                log(`Failed to start backtest: ${error.message}`, 'error');
+            }
+        }
+        
+        async function pollBacktestResults(runId) {
+            const checkResult = async () => {
+                try {
+                    const response = await fetch(`${BACKTEST_API}/api/backtest/result/${runId}`);
+                    const result = await response.json();
+                    
+                    if (result.status === 'completed') {
+                        displayBacktestResults(result);
+                    } else if (result.status === 'failed') {
+                        log(`Backtest failed: ${result.error}`, 'error');
+                    } else {
+                        // Still running, check again
+                        setTimeout(checkResult, 2000);
+                    }
+                } catch (error) {
+                    log(`Failed to fetch results: ${error.message}`, 'error');
+                }
+            };
+            
+            checkResult();
+        }
+        
+        function displayBacktestResults(results) {
+            // Update metrics
+            document.getElementById('today-revenue').textContent = `$${results.metrics.totalRevenue.toFixed(0)}`;
+            document.getElementById('cycles').textContent = results.metrics.totalCycles.toFixed(2);
+            document.getElementById('spread').textContent = `$${results.metrics.realizedSpread.toFixed(2)}`;
+            document.getElementById('win-rate').textContent = `${results.metrics.winRate.toFixed(1)}%`;
+            
+            // Update performance chart
+            const schedule = results.strategy.schedule || [];
+            const cumulativeRevenue = [];
+            let cumulative = 0;
+            
+            schedule.forEach(entry => {
+                cumulative += entry.revenue;
+                cumulativeRevenue.push(cumulative);
+            });
+            
+            charts.performance.data.labels = schedule.map((_, i) => i);
+            charts.performance.data.datasets[0].data = cumulativeRevenue;
+            charts.performance.update();
+            
+            log(`Backtest complete: $${results.metrics.totalRevenue.toFixed(2)} revenue`, 'success');
+        }
+        
+        function toggleLive() {
+            liveMode = !liveMode;
+            log(liveMode ? 'Live mode enabled' : 'Live mode disabled');
+        }
+        
+        function loadStrategies() {
+            // Load available strategies from API
+            fetch(`${BACKTEST_API}/api/strategies`)
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        log(`Loaded ${data.strategies.length} strategies`);
+                    }
+                })
+                .catch(error => {
+                    log(`Failed to load strategies: ${error.message}`, 'error');
+                });
+        }
+        
+        function log(message, type = 'info') {
+            const logContainer = document.getElementById('activity-log');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            logContainer.appendChild(entry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+    </script>
+</body>
+</html>

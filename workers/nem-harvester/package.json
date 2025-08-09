@@ -1,0 +1,21 @@
+{
+  "name": "nem-harvester",
+  "version": "1.0.0",
+  "description": "NEM/AEMO data harvester for Cloudflare Workers",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "create-db": "wrangler d1 create nem-meta",
+    "init-db": "wrangler d1 execute nem-meta --file=./schema.sql",
+    "create-bucket": "wrangler r2 bucket create nem-data",
+    "create-queue": "wrangler queues create nem-backfill",
+    "tail": "wrangler tail"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240806.0",
+    "typescript": "^5.5.4",
+    "wrangler": "^3.68.0"
+  },
+  "dependencies": {}
+}

@@ -1,0 +1,28 @@
+name = "backtest-engine"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+node_compat = true
+
+[[r2_buckets]]
+binding = "NEM_R2"
+bucket_name = "nem-data"
+
+[[r2_buckets]]
+binding = "BACKTEST_R2"
+bucket_name = "backtest-results"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "backtest-meta"
+database_id = "YOUR_D1_DATABASE_ID"
+
+[[durable_objects.bindings]]
+name = "BACKTEST_RUNNER"
+class_name = "BacktestRunner"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["BacktestRunner"]
+
+[vars]
+HARVESTER_URL = "https://nem-harvester.YOUR_SUBDOMAIN.workers.dev"
