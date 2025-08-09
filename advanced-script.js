@@ -606,44 +606,46 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
         }
     }
     
-    // Simulate battery operation
+    // Simulate battery operation with FIXED efficiency accounting
+    const etaSingle = Math.sqrt(efficiency);  // Split efficiency between charge and discharge
+    
     for (let i = 0; i < intervals; i++) {
         let powerFlow = 0;
         const operation = schedule[i];
         
         if (operation === 'charge' && soc < totalCapacity) {
-            const chargeAmount = Math.min(
-                totalPower * timeStep,
-                totalCapacity - soc
-            );
+            // FIX: Charge with efficiency loss
+            // Grid provides energy, battery receives less due to charge efficiency
+            const maxChargeToBattery = totalPower * etaSingle * timeStep;
+            const chargeAmount = Math.min(maxChargeToBattery, totalCapacity - soc);
             
             if (chargeAmount > 0.001) {
                 soc += chargeAmount;
+                const gridEnergy = chargeAmount / etaSingle;  // Energy from grid
                 powerFlow = -totalPower;
                 
-                // Cost of charging
-                const chargeCost = chargeAmount * data[i].price;
+                // Cost of charging (based on grid energy)
+                const chargeCost = gridEnergy * data[i].price;
                 revenue -= chargeCost;
                 totalCostOfCharging += chargeCost;
-                energyCharged += chargeAmount;
+                energyCharged += gridEnergy;  // Track grid-side energy
             }
         } else if (operation === 'discharge' && soc > 0.001) {
-            const maxDischarge = totalPower * timeStep;
-            const availableEnergy = soc;
-            const dischargeAmount = Math.min(maxDischarge, availableEnergy);
+            // FIX: Discharge with efficiency loss
+            // Battery provides energy, grid receives less due to discharge efficiency
+            const maxDischargeFromBattery = totalPower * timeStep;
+            const dischargeAmount = Math.min(maxDischargeFromBattery, soc);
             
             if (dischargeAmount > 0.001) {
-                // Battery loses energy internally
                 soc -= dischargeAmount;
-                // But we only deliver efficiency * energy to the grid
-                const deliveredEnergy = dischargeAmount * efficiency;
+                const gridEnergy = dischargeAmount * etaSingle;  // Energy to grid
                 powerFlow = totalPower;
                 
-                // Revenue from discharging (sell the delivered energy)
-                const dischargeRevenue = deliveredEnergy * data[i].price;
+                // Revenue from discharging (based on grid energy)
+                const dischargeRevenue = gridEnergy * data[i].price;
                 revenue += dischargeRevenue;
                 totalRevenueFromDischarging += dischargeRevenue;
-                energyDischarged += deliveredEnergy;
+                energyDischarged += gridEnergy;  // Track grid-side energy
             }
         }
         
@@ -667,11 +669,13 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
     
     for (let i = 0; i < operations.length; i++) {
         if (operations[i].operation === 'charge' && operations[i].powerFlow < 0) {
+            // FIX: Track grid-side energy correctly
             const energy = Math.abs(operations[i].powerFlow) * timeStep;
             weightedChargePrice += operations[i].price * energy;
             totalChargeEnergy += energy;
         } else if (operations[i].operation === 'discharge' && operations[i].powerFlow > 0) {
-            const energy = operations[i].powerFlow * timeStep * efficiency;
+            // FIX: Already accounts for efficiency in powerFlow
+            const energy = operations[i].powerFlow * timeStep;
             weightedDischargePrice += operations[i].price * energy;
             totalDischargeEnergy += energy;
         }
@@ -681,8 +685,8 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
     const avgDischargePrice = totalDischargeEnergy > 0 ? weightedDischargePrice / totalDischargeEnergy : 0;
     
     // Calculate the effective spread (this is what you actually make per MWh traded)
-    // You buy at charge price, lose (1-efficiency) in conversion, and sell at discharge price
-    const effectiveSpread = avgDischargePrice - (avgChargePrice / efficiency);
+    // FIX: Correct efficiency accounting
+    const effectiveSpread = avgDischargePrice * efficiency - avgChargePrice;
     
     return {
         revenue: revenue,
