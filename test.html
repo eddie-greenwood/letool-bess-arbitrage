@@ -84,6 +84,13 @@
         let failedTests = 0;
         let testResults = [];
 
+        let currentTestName = '';
+        
+        function startTest(name) {
+            currentTestName = name;
+            testResults.push({ testName: name });
+        }
+        
         function assert(condition, message) {
             const result = {
                 passed: condition,
@@ -112,23 +119,24 @@
             let html = '';
             let currentSection = '';
             
+            let currentTestName = '';
             testResults.forEach(result => {
-                if (result.section && result.section !== currentSection) {
-                    if (currentSection) html += '</div>';
-                    currentSection = result.section;
+                if (result.testName && result.testName !== currentTestName) {
+                    if (currentTestName) html += '</div>';
+                    currentTestName = result.testName;
                     html += `<div class="test-section">`;
-                    html += `<div class="test-name">${currentSection}</div>`;
+                    html += `<div class="test-name">${currentTestName}</div>`;
+                } else if (result.passed !== undefined) {
+                    const passClass = result.passed ? 'pass' : 'fail';
+                    const icon = result.passed ? '✓' : '✗';
+                    html += `<div class="test-result ${passClass}">`;
+                    html += `<span class="${result.passed ? 'test-pass' : 'test-fail'}">${icon}</span> `;
+                    html += result.message;
+                    html += '</div>';
                 }
-                
-                const passClass = result.passed ? 'pass' : 'fail';
-                const icon = result.passed ? '✓' : '✗';
-                html += `<div class="test-result ${passClass}">`;
-                html += `<span class="${result.passed ? 'test-pass' : 'test-fail'}">${icon}</span> `;
-                html += result.message;
-                html += '</div>';
             });
             
-            if (currentSection) html += '</div>';
+            if (currentTestName) html += '</div>';
             resultsDiv.innerHTML = html;
             
             const total = passedTests + failedTests;
@@ -151,7 +159,7 @@
             testResults = [];
             
             // Test 1: Cyclic operation
-            testResults.push({ section: 'Test 1: Cyclic Operation' });
+            startTest('Test 1: Cyclic Operation');
             {
                 const prices = new Array(288).fill(50);
                 for (let i = 72; i < 108; i++) prices[i] = 20;
@@ -176,7 +184,7 @@
             }
             
             // Test 2: Monotone cycles
-            testResults.push({ section: 'Test 2: Monotone Cycles' });
+            startTest('Test 2: Monotone Cycles');
             {
                 const prices = new Array(288).fill(50);
                 for (let i = 72; i < 108; i++) prices[i] = 20;
@@ -203,13 +211,13 @@
                     throughputCost: 20
                 });
                 
-                assert(result1.cycles >= result2.cycles, 'Higher cost reduces cycles');
+                assert(result1.cycles >= result2.cycles, `Higher cost reduces cycles (${result1.cycles.toFixed(2)} >= ${result2.cycles.toFixed(2)})`);
                 assert(result2.cycles >= result3.cycles, 'Even higher cost reduces cycles more');
                 assert(result1.revenue >= result2.revenue, 'Higher cost reduces revenue');
             }
             
             // Test 3: Constraint satisfaction
-            testResults.push({ section: 'Test 3: Constraint Satisfaction' });
+            startTest('Test 3: Constraint Satisfaction');
             {
                 const prices = new Array(288).fill(50);
                 prices[100] = 200;
@@ -245,7 +253,7 @@
             }
             
             // Test 4: Price cleaning
-            testResults.push({ section: 'Test 4: Price Cleaning' });
+            startTest('Test 4: Price Cleaning');
             {
                 const rawPrices = [50, 100, 20000, -2000, null, NaN, 75, 80];
                 
@@ -264,7 +272,7 @@
             }
             
             // Test 5: Efficiency model
-            testResults.push({ section: 'Test 5: Efficiency Model' });
+            startTest('Test 5: Efficiency Model');
             {
                 const prices = new Array(288).fill(50);
                 prices[100] = 20;
