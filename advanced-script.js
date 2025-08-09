@@ -20,6 +20,110 @@ const GREENWOOD_COLORS = {
     warning: '#FFB84D'
 };
 
+// ============================================
+// NETWORK TARIFF DEFINITIONS
+// ============================================
+// AusNet 2024-25 Battery Storage Trial Tariffs
+// Units: c/kWh converted to $/MWh (1 c/kWh = $10/MWh)
+// Time windows in AEST/AEDT (Victoria time)
+
+const TARIFFS = {
+    NONE: {
+        label: 'No Network Charges',
+        standing_per_year: 0,
+        windows: {},
+        energy_c_per_kwh: {
+            import: { solarSoak: 0, peak: 0, offPeak: 0 },
+            export: { solarSoak: 0, peak: 0, offPeak: 0 }
+        },
+        demand_per_kva_month: {
+            import: { solarSoak: 0, peak: 0, offPeak: 0 },
+            export: { solarSoak: 0, peak: 0, offPeak: 0 }
+        }
+    },
+    AUSNET_UESH01T: {
+        label: 'AusNet UESH01T (HV) - Utility ESS',
+        standing_per_year: 4999.72,   // $/year standing charge
+        windows: {
+            solarSoak: { start: '10:00', end: '15:00' },  // 10am-3pm solar soak
+            peak:      { start: '15:00', end: '21:00' },  // 3pm-9pm peak (includes evening)
+            // off-peak = everything else (9pm-10am)
+        },
+        // c/kWh; positive = cost, negative = credit
+        energy_c_per_kwh: {
+            import:  { solarSoak: 0.00, peak: 2.05,  offPeak: 0.59 },
+            export:  { solarSoak: -1.10, peak: -2.50, offPeak: 0.00 }  // Credits shown as negative
+        },
+        // $/kVA/month demand charges (HV has none)
+        demand_per_kva_month: {
+            import:  { solarSoak: 0.00, peak: 0.00, offPeak: 0.00 },
+            export:  { solarSoak: 0.00, peak: 0.00, offPeak: 0.00 }
+        }
+    },
+    AUSNET_UESS01T: {
+        label: 'AusNet UESS01T (Sub-Tx) - Utility ESS',
+        standing_per_year: 17930.61,  // Higher standing charge for Sub-Tx
+        windows: {
+            solarSoak: { start: '10:00', end: '15:00' },  // 10am-3pm
+            peak:      { start: '15:00', end: '21:00' },  // 3pm-9pm
+        },
+        energy_c_per_kwh: {
+            import:  { solarSoak: 0.00, peak: 1.20,  offPeak: 0.32 },
+            export:  { solarSoak: -1.10, peak: -1.80, offPeak: 0.00 }
+        },
+        // Sub-Tx has demand charges ($/kVA/month)
+        demand_per_kva_month: {
+            import:  { solarSoak: 0.65, peak: 1.20, offPeak: 0.00 },
+            export:  { solarSoak: 0.00, peak: 0.00, offPeak: 0.00 }
+        }
+    },
+    CUSTOM: {
+        label: 'Custom Tariff',
+        standing_per_year: 0,
+        windows: {
+            solarSoak: { start: '10:00', end: '15:00' },
+            peak:      { start: '15:00', end: '21:00' },
+        },
+        energy_c_per_kwh: {
+            import:  { solarSoak: 0, peak: 0, offPeak: 0 },
+            export:  { solarSoak: 0, peak: 0, offPeak: 0 }
+        },
+        demand_per_kva_month: {
+            import:  { solarSoak: 0, peak: 0, offPeak: 0 },
+            export:  { solarSoak: 0, peak: 0, offPeak: 0 }
+        }
+    }
+};
+
+// Helper: Convert c/kWh to $/MWh
+function cPerKwhToDollarPerMWh(cents) {
+    return (cents || 0) * 10;
+}
+
+// Helper: Determine time-of-use period for a given timestamp
+function getTariffPeriod(timestamp, windows) {
+    if (!windows || Object.keys(windows).length === 0) return 'offPeak';
+    
+    const date = new Date(timestamp);
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    
+    // Check each window
+    if (windows.solarSoak) {
+        if (timeStr >= windows.solarSoak.start && timeStr < windows.solarSoak.end) {
+            return 'solarSoak';
+        }
+    }
+    if (windows.peak) {
+        if (timeStr >= windows.peak.start && timeStr < windows.peak.end) {
+            return 'peak';
+        }
+    }
+    
+    return 'offPeak';
+}
+
 // Chart instances
 let priceChart = null;
 let socChart = null;
@@ -249,6 +353,8 @@ async function analyzeOpportunity() {
             
             const optimizationMode = document.getElementById('optimizationMode').value;
             const throughputCost = parseFloat(document.getElementById('throughputCost').value) || 0;
+            const tariffId = document.getElementById('tariff').value;
+            const tariff = TARIFFS[tariffId];
             
             let dayResult;
             if (optimizationMode === 'dp') {
@@ -259,7 +365,8 @@ async function analyzeOpportunity() {
                     maxCycles,
                     capacity * numUnits,
                     power * numUnits,
-                    throughputCost
+                    throughputCost,
+                    tariff
                 );
             } else {
                 // Use heuristic method
@@ -268,7 +375,8 @@ async function analyzeOpportunity() {
                     efficiency, 
                     maxCycles, 
                     capacity * numUnits,
-                    power * numUnits
+                    power * numUnits,
+                    tariff
                 );
             }
             
@@ -511,9 +619,23 @@ function simulateMarketData(date, region) {
 /**
  * Calculate arbitrage using Dynamic Programming optimizer
  */
-function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalPower, throughputCost = 0) {
-    // Extract prices array
-    const prices = data.map(d => d.price);
+function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalPower, throughputCost = 0, tariff = null) {
+    // Track original prices and calculate network adjustments
+    const originalPrices = data.map(d => d.price);
+    let prices = [...originalPrices];
+    
+    // Calculate network charges for each interval
+    const networkData = data.map((d, i) => {
+        const period = tariff ? getTariffPeriod(d.timestamp || new Date(), tariff.windows) : 'offPeak';
+        const importAdj = tariff ? cPerKwhToDollarPerMWh(tariff.energy_c_per_kwh.import[period]) : 0;
+        const exportAdj = tariff ? cPerKwhToDollarPerMWh(tariff.energy_c_per_kwh.export[period]) : 0;
+        
+        return {
+            period,
+            importAdj,  // Cost added when charging (positive = cost)
+            exportAdj   // Value adjustment when discharging (negative = credit)
+        };
+    });
     
     // Split efficiency into charge and discharge components
     // For round-trip efficiency η, we use √η for both charge and discharge
@@ -557,17 +679,37 @@ function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalP
     const operations = [];
     const socHistory = [];
     
+    // Calculate revenue breakdown with network charges
+    let wholesaleRevenue = 0;
+    let networkCharges = 0;
+    let standingCharge = 0;
+    let demandCharges = 0;
+    
+    // Track peak demand in each period for demand charges
+    const peakDemand = { solarSoak: 0, peak: 0, offPeak: 0 };
+    
     result.flows.forEach((flow, idx) => {
         const interval = data[idx];
+        const network = networkData[idx];
         let operation = 'neutral';
         let powerFlow = 0;
         
         if (flow.op === 'charge') {
             operation = 'charge';
             powerFlow = -flow.buyMWh / (5/60);  // Convert to MW
+            wholesaleRevenue -= flow.buyMWh * originalPrices[idx];  // Wholesale cost
+            networkCharges += flow.buyMWh * network.importAdj;  // Network import cost
+            
+            // Track peak demand for this period
+            const powerMW = Math.abs(powerFlow);
+            if (powerMW > peakDemand[network.period]) {
+                peakDemand[network.period] = powerMW;
+            }
         } else if (flow.op === 'discharge') {
             operation = 'discharge';
             powerFlow = flow.sellMWh / (5/60);  // Convert to MW
+            wholesaleRevenue += flow.sellMWh * originalPrices[idx];  // Wholesale revenue
+            networkCharges += flow.sellMWh * network.exportAdj;  // Network export (usually negative = credit)
         }
         
         operations.push({
@@ -576,11 +718,27 @@ function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalP
             powerFlow: powerFlow,
             operation: operation,
             reservationCharge: result.reservation.charge[idx],
-            reservationDischarge: result.reservation.discharge[idx]
+            reservationDischarge: result.reservation.discharge[idx],
+            tariffPeriod: network.period
         });
         
         socHistory.push(flow.socMWh);
     });
+    
+    // Calculate standing charge (pro-rated per day)
+    if (tariff && tariff.standing_per_year > 0) {
+        standingCharge = tariff.standing_per_year / 365;
+    }
+    
+    // Calculate demand charges ($/kVA/month pro-rated)
+    if (tariff && tariff.demand_per_kva_month) {
+        const powerFactor = 0.95;  // Assumed power factor
+        Object.keys(peakDemand).forEach(period => {
+            const peakKVA = (peakDemand[period] * 1000) / powerFactor;  // Convert MW to kVA
+            const monthlyCharge = peakKVA * (tariff.demand_per_kva_month.import[period] || 0);
+            demandCharges += monthlyCharge / 30;  // Daily pro-rata
+        });
+    }
     
     // Check if we exceeded max cycles and need to recalculate
     if (result.cycles > maxCycles && throughputCost === 0) {
@@ -595,8 +753,22 @@ function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalP
     // Cap the reported cycles at maxCycles even if algorithm found more
     const reportedCycles = Math.min(result.cycles, maxCycles);
     
+    // Calculate total revenue including all charges
+    const totalRevenue = wholesaleRevenue - networkCharges - standingCharge - demandCharges;
+    
     return {
-        revenue: result.revenue,
+        revenue: totalRevenue,  // Net revenue after all charges
+        wholesaleRevenue: wholesaleRevenue,  // Wholesale only
+        networkCharges: networkCharges,  // Network energy charges
+        standingCharge: standingCharge,  // Daily standing charge
+        demandCharges: demandCharges,  // Demand-based charges
+        breakdown: {
+            wholesale: wholesaleRevenue,
+            network: -networkCharges,  // Negative because charges reduce revenue
+            standing: -standingCharge,
+            demand: -demandCharges,
+            total: totalRevenue
+        },
         cycles: reportedCycles,
         avgSpread: result.avgSpread,
         avgChargePrice: result.avgChargePrice,
@@ -608,14 +780,15 @@ function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalP
         reservation: result.reservation,
         dpOptimal: true,
         actualCycles: result.cycles,
-        maxCyclesConstraint: maxCycles
+        maxCyclesConstraint: maxCycles,
+        tariff: tariff ? tariff.label : 'None'
     };
 }
 
 /**
  * Calculate multi-cycle arbitrage opportunities with improved algorithm
  */
-function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity, totalPower) {
+function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity, totalPower, tariff = null) {
     const intervals = data.length;
     const timeStep = 5 / 60; // 5 minutes in hours
     

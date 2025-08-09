@@ -727,6 +727,15 @@
                         <label for="throughputCost">Degradation Cost ($/MWh)</label>
                         <input type="number" id="throughputCost" value="0" min="0" max="20" step="1" title="Cost per MWh of battery throughput to account for degradation">
                     </div>
+                    <div class="control-group">
+                        <label for="tariff">Network Tariff</label>
+                        <select id="tariff" title="Network charges for battery import/export">
+                            <option value="NONE">No Network Charges</option>
+                            <option value="AUSNET_UESH01T">AusNet UESH01T (HV) - Utility ESS</option>
+                            <option value="AUSNET_UESS01T">AusNet UESS01T (Sub-Tx) - Utility ESS</option>
+                            <option value="CUSTOM">Custom Tariff...</option>
+                        </select>
+                    </div>
                 </div>
             </div>
 
