@@ -205,6 +205,12 @@ async function analyzeOpportunity() {
     document.getElementById('metrics').style.display = 'none';
     document.getElementById('navTabs').style.display = 'none';
     
+    // Hide algorithm explainer during loading
+    const explainer = document.getElementById('algorithmExplainer');
+    if (explainer) {
+        explainer.style.display = 'none';
+    }
+    
     try {
         const start = new Date(startDate);
         const end = new Date(endDate);
@@ -287,6 +293,12 @@ async function analyzeOpportunity() {
         
         document.getElementById('metrics').style.display = 'grid';
         document.getElementById('navTabs').style.display = 'flex';
+        
+        // Show algorithm explainer after results
+        const explainer = document.getElementById('algorithmExplainer');
+        if (explainer) {
+            explainer.style.display = 'block';
+        }
         
         currentDayIndex = 0;
         updateDailyView(0);
