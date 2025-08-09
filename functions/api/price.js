@@ -1,288 +1,179 @@
-export async function onRequestGet({ request, env }) {
-  const { searchParams } = new URL(request.url);
-  const region = (searchParams.get('region') || 'VIC1').toUpperCase();
-  const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
+export async function onRequestGet({ request }) {
+  const url = new URL(request.url);
+  const region = (url.searchParams.get('region') || 'VIC1').toUpperCase();
+  const requestedDate = url.searchParams.get('date'); // optional YYYY-MM-DD
   
-  // Use environment variable for API key, fallback to hardcoded (temporary)
-  // TODO: Remove hardcoded key after confirming env variable works
-  const API_KEY = env?.OE_API_KEY || 'oe_3ZYA5q2YBHGz5y8ZFafkbTPF';
-  console.log('Using API key:', API_KEY ? 'Yes' : 'No', ', From env:', !!env?.OE_API_KEY);
+  // Determine date range (single day if date provided, otherwise last 7 days)
+  const end = requestedDate ? new Date(requestedDate) : new Date();
+  const start = new Date(end);
+  start.setDate(end.getDate() - (requestedDate ? 0 : 6)); // Single day or 7 days
   
-  // 1) Try OpenElectricity v4 API with energy data (BASIC plan supports this)
+  console.log(`Fetching AEMO data for ${region} from ${start.toISOString()} to ${end.toISOString()}`);
+  
   try {
-    // Dates must be timezone naive (no +10:00)
-    const start = `${date}T00:00:00`;
-    const end = `${date}T23:59:59`;
+    // Build the list of months we need (current + maybe previous)
+    const months = [];
+    const now = new Date();
+    let cur = new Date(start.getFullYear(), start.getMonth(), 1);
     
-    // BASIC plan supports 'energy' metric
-    const oeURL = `https://api.openelectricity.org.au/v4/data/network/NEM` +
-                  `?metrics=energy&interval=5m&date_start=${start}&date_end=${end}&primary_grouping=network_region`;
-    
-    console.log('Trying OpenElectricity v4:', oeURL);
-    
-    const response = await fetch(oeURL, {
-      headers: {
-        'Authorization': `Bearer ${API_KEY}`,
-        'Accept': 'application/json',
-      }
-    });
-    
-    const text = await response.text();
-    
-    // Check if response is HTML (error page)
-    if (!response.ok || text.trim().startsWith('<')) {
-      throw new Error(`OpenElectricity returned ${response.status}: ${text.substring(0, 100)}`);
+    while (cur <= end) {
+      const year = cur.getFullYear();
+      const month = cur.getMonth() + 1;
+      const yyyymm = `${year}${String(month).padStart(2, '0')}`;
+      const isCurrent = year === now.getFullYear() && month === now.getMonth() + 1;
+      months.push({ yyyymm, isCurrent });
+      cur.setMonth(cur.getMonth() + 1);
     }
     
-    const json = JSON.parse(text);
+    // Build URLs for AEMO CSVs
+    const baseCurrent = 'https://www.nemweb.com.au/mms.GRAPHS/DATA/';
+    const baseArchive = 'https://www.nemweb.com.au/mms.GRAPHS/data/';
     
-    console.log('OpenElectricity response keys:', Object.keys(json));
+    const urls = months.map(m => m.isCurrent
+      ? `${baseCurrent}DATACURRENTMONTH_${region}.csv`
+      : `${baseArchive}DATA${m.yyyymm}_${region}.csv`
+    );
     
-    // Check if we got data
-    if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-      console.log('Got data array with', json.data.length, 'items');
-      console.log('First item structure:', JSON.stringify(json.data[0], null, 2).substring(0, 200));
+    console.log('Fetching AEMO CSV files:', urls);
+    
+    // Fetch all CSVs in parallel
+    const responses = await Promise.all(
+      urls.map(u => fetch(u).catch(err => {
+        console.error(`Failed to fetch ${u}:`, err);
+        return null;
+      }))
+    );
+    
+    // Combine all CSV text
+    const texts = await Promise.all(
+      responses.map(r => r && r.ok ? r.text() : '')
+    );
+    
+    const csvData = texts.join('\n');
+    
+    if (!csvData || csvData.length < 100) {
+      throw new Error('No CSV data retrieved from AEMO');
+    }
+    
+    // Parse CSV and extract price data
+    const intervals = [];
+    const lines = csvData.split(/\r?\n/);
+    
+    // Date range for filtering
+    const startKey = toDateKey(start); // 'YYYY/MM/DD'
+    const endKey = toDateKey(end);
+    
+    console.log(`Parsing CSV data, filtering dates ${startKey} to ${endKey}`);
+    
+    for (const line of lines) {
+      // Skip empty lines and headers
+      if (!line || line.includes('REGION,') || line.startsWith('"REGION"')) continue;
       
-      // For energy data, there might be only one series without region grouping
-      // or the region might be in a different field
-      let series = json.data.find(s => 
-        s.group?.network_region === region || 
-        s.network_region === region ||
-        s.region === region ||
-        (s.group && (s.group.network_region === region || s.group.region === region))
+      const parts = line.split(',');
+      if (parts.length < 5) continue;
+      
+      // CSV format: REGION, SETTLEMENTDATE, TOTALDEMAND, RRP, PERIODTYPE
+      const regionCol = parts[0].replace(/"/g, '').trim();
+      const dateTimeStr = parts[1].replace(/"/g, '').trim(); // 'YYYY/MM/DD HH:MM:SS'
+      const rrp = parseFloat(parts[3]);
+      
+      // Skip if not our region or invalid price
+      if (regionCol !== region || !isFinite(rrp)) continue;
+      
+      // Extract date for filtering
+      const dayKey = dateTimeStr.slice(0, 10); // 'YYYY/MM/DD'
+      if (dayKey < startKey || dayKey > endKey) continue;
+      
+      // Parse datetime - AEMO times are in NEM time (AEST/AEDT)
+      // Convert YYYY/MM/DD HH:MM:SS to parseable format
+      const [datePart, timePart] = dateTimeStr.split(' ');
+      if (!timePart) continue;
+      
+      const [year, month, day] = datePart.split('/');
+      const [hour, minute, second] = timePart.split(':');
+      
+      // Create date in local time (will be converted to UTC for storage)
+      const dt = new Date(
+        parseInt(year),
+        parseInt(month) - 1,
+        parseInt(day),
+        parseInt(hour),
+        parseInt(minute),
+        parseInt(second) || 0
       );
       
-      // If no region match found and only one series, use it
-      if (!series && json.data.length === 1) {
-        console.log('Using single series (no region filter)');
-        series = json.data[0];
-      }
-      
-      console.log('Found series for region:', !!series);
-      
-      if (series?.data?.length) {
-        // Energy data might not have prices, but we can use it as a proxy
-        // Convert MWh values to estimated prices based on typical patterns
-        const intervals = series.data.map(([timestamp, energy]) => {
-          const d = new Date(timestamp);
-          const hour = d.getHours();
-          
-          // Estimate price based on energy demand and time of day
-          // This is a rough approximation - higher energy typically means higher price
-          const basePrice = 80;
-          const energyFactor = Math.max(0.5, Math.min(2, (energy || 5000) / 5000));
-          const timeFactor = (hour >= 17 && hour <= 20) ? 1.5 : 
-                             (hour >= 11 && hour <= 15) ? 0.7 : 1.0;
-          const estimatedPrice = basePrice * energyFactor * timeFactor;
-          
-          return {
-            time: `${String(hour).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
-            hour: hour,
-            minute: d.getMinutes(),
-            price: Number(estimatedPrice.toFixed(2)),
-            timestamp: d.toISOString(),
-            energy: energy // Include actual energy data
-          };
-        });
-        
-        return new Response(JSON.stringify({
-          success: true,
-          data: intervals,
-          source: 'openelectricity-energy',
-          region: region,
-          date: date,
-          message: 'Energy data from OpenElectricity (prices estimated from demand)',
-          note: 'Using energy demand to estimate prices. Upgrade to PRO for actual price data.'
-        }), {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
-            'Cache-Control': 'public, max-age=300',
-          },
-        });
-      }
+      intervals.push({
+        time: `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`,
+        hour: dt.getHours(),
+        minute: dt.getMinutes(),
+        price: rrp,
+        timestamp: dt.toISOString()
+      });
     }
+    
+    console.log(`Parsed ${intervals.length} price intervals from AEMO data`);
+    
+    if (intervals.length > 0) {
+      // Sort by time
+      intervals.sort((a, b) => {
+        const timeA = a.hour * 60 + a.minute;
+        const timeB = b.hour * 60 + b.minute;
+        return timeA - timeB;
+      });
+      
+      return new Response(JSON.stringify({
+        success: true,
+        data: intervals,
+        source: 'aemo-nemweb',
+        region: region,
+        date: requestedDate || 'last-7-days',
+        message: 'LIVE prices from AEMO NEMWeb',
+        dataPoints: intervals.length
+      }), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'public, max-age=300',
+        },
+      });
+    }
+    
+    throw new Error('No price data found for the specified date range');
+    
   } catch (error) {
-    console.log('OpenElectricity v4 failed:', error.message);
-    // Return error details for debugging
+    console.error('AEMO fetch failed:', error);
+    
+    // Fall back to simulation
+    console.log('Falling back to NEM simulation');
+    const intervals = generateNEMData(region, requestedDate || new Date().toISOString().split('T')[0]);
+    
     return new Response(JSON.stringify({
-      success: false,
-      source: 'error',
-      error: error.message,
-      stage: 'openelectricity-v4',
-      debug: {
-        hasApiKey: !!API_KEY,
-        errorType: error.name
-      }
+      success: true,
+      data: intervals,
+      source: 'simulation',
+      region: region,
+      date: requestedDate || 'today',
+      message: 'Using NEM market simulation (AEMO unavailable)',
+      error: error.message
     }), {
-      status: 200, // Return 200 so we can see the error
+      status: 200,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=300',
       },
     });
   }
-
-  // 2) Try AEMO NEMWeb as fallback (public CSV data)
-  try {
-    console.log('Trying NEMWeb CSV fallback');
-    
-    // Get current dispatch data from NEMWeb (using HTTPS)
-    const nemWebUrl = 'https://www.nemweb.com.au/Reports/Current/DispatchIS_Reports/';
-    const listResp = await fetch(nemWebUrl);
-    
-    if (listResp.ok) {
-      const html = await listResp.text();
-      
-      // Find DISPATCHREGIONSUM files (contain regional prices)
-      const files = html.match(/DISPATCHREGIONSUM_\d+_\d+\.CSV/g);
-      
-      if (files && files.length > 0) {
-        // Get the most recent file
-        const latestFile = files[files.length - 1];
-        const csvUrl = `${nemWebUrl}${latestFile}`;
-        
-        console.log('Fetching NEMWeb CSV:', csvUrl);
-        const csvResp = await fetch(csvUrl);
-        
-        if (csvResp.ok) {
-          const csvText = await csvResp.text();
-          const intervals = parseNEMWebCSV(csvText, region, date);
-          
-          if (intervals && intervals.length > 0) {
-            return new Response(JSON.stringify({
-              success: true,
-              data: intervals,
-              source: 'nemweb',
-              region: region,
-              date: date,
-              message: 'LIVE data from AEMO NEMWeb'
-            }), {
-              status: 200,
-              headers: {
-                'Content-Type': 'application/json',
-                'Access-Control-Allow-Origin': '*',
-                'Cache-Control': 'public, max-age=300',
-              },
-            });
-          }
-        }
-      }
-    }
-  } catch (error) {
-    console.log('NEMWeb fallback failed:', error.message);
-  }
-
-  // All endpoints failed - use high-quality simulation
-  console.log('All API endpoints failed, using simulation');
-  const intervals = generateNEMData(region, date || new Date().toISOString().split('T')[0]);
-  
-  return new Response(JSON.stringify({
-    success: true,
-    data: intervals,
-    source: 'simulation',
-    region: region,
-    date: date,
-    message: 'Using high-quality NEM market simulation',
-    note: 'OpenElectricity BASIC plan does not support price data. Upgrade to PRO plan for live prices.',
-    limitations: {
-      openelectricity: 'BASIC plan only supports power/energy metrics, not price',
-      nemweb: 'CSV parsing requires complex authentication',
-      recommendation: 'Upgrade to OpenElectricity PRO plan for live price data'
-    }
-  }), {
-    status: 200,
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Cache-Control': 'public, max-age=300',
-    },
-  });
 }
 
-// Parse NEMWeb CSV data
-function parseNEMWebCSV(csvText, region, requestedDate) {
-  try {
-    const lines = csvText.split('\n');
-    const priceMap = new Map(); // Use map to aggregate by time
-    
-    for (const line of lines) {
-      // Skip headers and empty lines
-      if (!line || line.startsWith('I,') || line.startsWith('C,') || line.startsWith('D,')) continue;
-      
-      const parts = line.split(',');
-      
-      // DISPATCHREGIONSUM format has REGIONID in column 6, RRP (price) in column 11
-      if (parts.length > 11 && parts[6] === region) {
-        const dateTimeStr = parts[4]; // SETTLEMENTDATE column
-        const price = parseFloat(parts[11]); // RRP column
-        
-        if (!isNaN(price) && dateTimeStr) {
-          // Parse datetime (format: YYYY/MM/DD HH:MM:SS)
-          const [datePart, timePart] = dateTimeStr.split(' ');
-          if (timePart) {
-            const [hour, minute] = timePart.split(':').map(Number);
-            const timeKey = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-            
-            // Store or average if duplicate
-            if (!priceMap.has(timeKey) || Math.abs(price) < Math.abs(priceMap.get(timeKey).price)) {
-              priceMap.set(timeKey, {
-                time: timeKey,
-                hour: hour,
-                minute: minute,
-                price: price,
-                timestamp: new Date(dateTimeStr.replace(/\//g, '-')).toISOString()
-              });
-            }
-          }
-        }
-      }
-    }
-    
-    // Convert map to sorted array
-    const intervals = Array.from(priceMap.values()).sort((a, b) => {
-      return (a.hour * 60 + a.minute) - (b.hour * 60 + b.minute);
-    });
-    
-    // If we have data but not enough, fill in gaps
-    if (intervals.length > 0 && intervals.length < 288) {
-      const fullIntervals = [];
-      for (let hour = 0; hour < 24; hour++) {
-        for (let minute = 0; minute < 60; minute += 5) {
-          const timeKey = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
-          const existing = intervals.find(i => i.time === timeKey);
-          
-          if (existing) {
-            fullIntervals.push(existing);
-          } else {
-            // Interpolate or use nearest
-            const nearest = intervals.reduce((prev, curr) => {
-              const prevDiff = Math.abs((prev.hour * 60 + prev.minute) - (hour * 60 + minute));
-              const currDiff = Math.abs((curr.hour * 60 + curr.minute) - (hour * 60 + minute));
-              return currDiff < prevDiff ? curr : prev;
-            });
-            
-            fullIntervals.push({
-              time: timeKey,
-              hour: hour,
-              minute: minute,
-              price: nearest.price + (Math.random() - 0.5) * 10, // Add small variation
-              timestamp: new Date().toISOString()
-            });
-          }
-        }
-      }
-      return fullIntervals;
-    }
-    
-    return intervals;
-  } catch (error) {
-    console.error('Error parsing NEMWeb CSV:', error);
-    return null;
-  }
+// Helper function to format date as YYYY/MM/DD for comparison
+function toDateKey(dt) {
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const d = String(dt.getDate()).padStart(2, '0');
+  return `${y}/${m}/${d}`;
 }
-
 
 // Handle preflight requests
 export async function onRequestOptions({ request }) {
@@ -295,6 +186,7 @@ export async function onRequestOptions({ request }) {
   });
 }
 
+// High-quality NEM simulation as fallback
 function generateNEMData(region, date) {
   const intervals = [];
   const dateObj = new Date(date);
