@@ -7,16 +7,15 @@ export async function onRequestGet({ request, env }) {
   const API_KEY = env?.OE_API_KEY || 'oe_3ZYA5q2YBHGz5y8ZFafkbTPF';
   console.log('API Key available:', !!API_KEY, 'From env:', !!env?.OE_API_KEY);
   
-  // 1) Try OpenElectricity v4 API with authentication
-  // Note: BASIC plan doesn't support 'price' metric, skipping to NEMWeb
-  /*
+  // 1) Try OpenElectricity v4 API with energy data (BASIC plan supports this)
   try {
-    const start = `${date}T00:00:00+10:00`;
-    const end = `${date}T23:59:59+10:00`;
+    // Dates must be timezone naive (no +10:00)
+    const start = `${date}T00:00:00`;
+    const end = `${date}T23:59:59`;
     
-    // BASIC plan only supports 'power' metric, not 'price'
+    // BASIC plan supports 'energy' metric
     const oeURL = `https://api.openelectricity.org.au/v4/data/network/NEM` +
-                  `?metrics=power&interval=5m&period=1d&primary_grouping=network_region`;
+                  `?metrics=energy&interval=5m&date_start=${start}&date_end=${end}&primary_grouping=network_region`;
     
     console.log('Trying OpenElectricity v4:', oeURL);
     
@@ -36,44 +35,65 @@ export async function onRequestGet({ request, env }) {
     
     const json = JSON.parse(text);
     
-    // Find the series for our region
-    const series = (json.data || []).find(s => 
-      s.group?.network_region === region || 
-      s.network_region === region
-    );
+    console.log('OpenElectricity response keys:', Object.keys(json));
     
-    if (series?.data?.length) {
-      const intervals = series.data.map(([timestamp, price]) => {
-        const d = new Date(timestamp);
-        return {
-          time: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
-          hour: d.getHours(),
-          minute: d.getMinutes(),
-          price: Number(price || 0),
-          timestamp: d.toISOString()
-        };
-      });
+    // Check if we got data
+    if (json.data && Array.isArray(json.data)) {
+      // Find the series for our region
+      const series = json.data.find(s => 
+        s.group?.network_region === region || 
+        s.network_region === region ||
+        (s.group && s.group.network_region === region)
+      );
       
-      return new Response(JSON.stringify({
-        success: true,
-        data: intervals,
-        source: 'openelectricity-v4',
-        region: region,
-        date: date,
-        message: 'LIVE data from OpenElectricity v4 API'
-      }), {
-        status: 200,
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Cache-Control': 'public, max-age=300',
-        },
-      });
+      console.log('Found series for region:', !!series);
+      
+      if (series?.data?.length) {
+        // Energy data might not have prices, but we can use it as a proxy
+        // Convert MWh values to estimated prices based on typical patterns
+        const intervals = series.data.map(([timestamp, energy]) => {
+          const d = new Date(timestamp);
+          const hour = d.getHours();
+          
+          // Estimate price based on energy demand and time of day
+          // This is a rough approximation - higher energy typically means higher price
+          const basePrice = 80;
+          const energyFactor = Math.max(0.5, Math.min(2, (energy || 5000) / 5000));
+          const timeFactor = (hour >= 17 && hour <= 20) ? 1.5 : 
+                             (hour >= 11 && hour <= 15) ? 0.7 : 1.0;
+          const estimatedPrice = basePrice * energyFactor * timeFactor;
+          
+          return {
+            time: `${String(hour).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`,
+            hour: hour,
+            minute: d.getMinutes(),
+            price: Number(estimatedPrice.toFixed(2)),
+            timestamp: d.toISOString(),
+            energy: energy // Include actual energy data
+          };
+        });
+        
+        return new Response(JSON.stringify({
+          success: true,
+          data: intervals,
+          source: 'openelectricity-energy',
+          region: region,
+          date: date,
+          message: 'Energy data from OpenElectricity (prices estimated from demand)',
+          note: 'Using energy demand to estimate prices. Upgrade to PRO for actual price data.'
+        }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'public, max-age=300',
+          },
+        });
+      }
     }
   } catch (error) {
     console.log('OpenElectricity v4 failed:', error.message);
   }
-  */
 
   // 2) Try AEMO NEMWeb as fallback (public CSV data)
   try {
