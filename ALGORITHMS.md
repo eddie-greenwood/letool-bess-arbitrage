@@ -2,218 +2,150 @@
 
 ## Overview
 
-Lé Tool is a Battery Energy Storage System (BESS) arbitrage optimizer that uses advanced algorithms to maximize revenue from energy trading in the Australian National Electricity Market (NEM). The tool employs two complementary optimization approaches and sophisticated market analysis techniques.
+Lé Tool is a Battery Energy Storage System (BESS) arbitrage optimiser for the Australian National Electricity Market (NEM). It provides two complementary optimisation approaches with proper handling of market rules and engineering constraints.
 
 ## Core Algorithms
 
-### 1. Dynamic Programming (DP) Optimizer
+### 1. Dynamic Programming (DP) Optimiser
 
-The DP optimizer uses a value function approach with backward induction to find the globally optimal trading strategy.
+The DP optimiser uses value function iteration with backward induction to find the globally optimal trading strategy for a single day.
 
-#### Key Features:
-- **Value Function Approach**: Computes optimal value at each state (SoC level) and time
-- **Reservation Prices**: Calculates charge/discharge thresholds dynamically
-- **Salvage Value**: Accounts for end-of-day State of Charge value
-- **Throughput Cost Calibration**: Uses bisection method to achieve target cycles
-
-#### Algorithm Steps:
-1. **Initialization**:
-   - Discretize SoC into 201 steps (0.5% resolution)
-   - Set terminal value function with salvage value
-   - Initialize value grid V[soc][time]
-
-2. **Backward Induction**:
-   ```
-   For each time step (backward):
-     For each SoC state:
-       Calculate value of:
-         - Charging: V_charge = -buyPrice * energy + V[future_soc][t+1]
-         - Discharging: V_discharge = sellPrice * energy + V[future_soc][t+1]  
-         - Idle: V_idle = V[soc][t+1]
-       V[soc][t] = max(V_charge, V_discharge, V_idle)
-   ```
-
-3. **Forward Simulation**:
-   - Start from initial SoC
-   - At each time, choose action with highest value
-   - Apply efficiency losses (√η for both charge and discharge)
-
-4. **Reservation Price Calculation**:
-   - Charge threshold: price below which charging is profitable
-   - Discharge threshold: price above which discharging is profitable
-   - Smoothing applied to reduce noise
-
-5. **Cycle Control**:
-   - Bisection method to find throughput cost that achieves target cycles
-   - Iteratively adjusts cost penalty on energy throughput
-
-### 2. Heuristic Optimizer
-
-Fast greedy algorithm that identifies and exploits the best arbitrage opportunities.
+#### State Space & Complexity
+- **Primary state**: State of Charge (SoC) discretised to ~201 levels (0.5% resolution)
+- **Complexity**: O(S × T × A) where S=states, T=288 time intervals, A=actions
+- **Runtime**: <1 second for daily optimisation on modern hardware
 
 #### Key Features:
-- **Opportunity Ranking**: Sorts charge/discharge pairs by profitability
-- **Non-overlapping Selection**: Ensures selected opportunities don't conflict
-- **Fixed Efficiency Split**: √η applied to both charge and discharge
+- **Value Function**: V(s,t) = max value achievable from state s at time t
+- **Backward Induction**: Solves from terminal time backward
+- **Cyclic Boundary**: Terminal SoC penalty to encourage return to initial state
+- **Throughput Cost**: Degradation penalty ($/MWh) on battery throughput
 
-#### Algorithm Steps:
-1. **Opportunity Identification**:
-   ```
-   For each potential charge window:
-     For each potential discharge window after charge:
-       Calculate profit = (discharge_price * η - charge_price) * capacity
-       Store if profitable
-   ```
+#### Reservation Prices
+Computed from value function gradients:
+- **Charge threshold** at SoC s: `(V(s) - V(s+Δs)) / (η_ch × ΔE)`
+- **Discharge threshold** at SoC s: `(V(s-Δs) - V(s)) × η_dis / ΔE`
 
-2. **Opportunity Selection**:
-   - Sort opportunities by profit margin
-   - Select non-overlapping opportunities up to max cycles
-   - Build operation schedule
+#### Limitations:
+- **Minimum run constraints**: Not enforced in current state-only formulation
+  - Fix: Augment state to (soc, mode, dwell_time) or apply post-processing
+- **Single efficiency**: Currently uses √η split; should allow η_ch ≠ η_dis
 
-3. **Simulation**:
-   - Execute schedule with efficiency losses
-   - Track SoC throughout the day
-   - Calculate total revenue
+### 2. Heuristic Optimiser
 
-### 3. Price Processing
+Fast greedy algorithm for quick estimates and feasibility studies.
 
-#### Price Cleaning:
-- **Spike Detection**: Identifies abnormal price spikes (>$500/MWh)
-- **Clamping**: Limits extreme values to reasonable range
-- **Outlier Handling**: Replaces outliers with local average
+#### Algorithm:
+1. **Identify opportunities**: Find all charge/discharge window pairs
+2. **Rank by profit**: Sort by energy-weighted spread
+3. **Select non-overlapping**: Pick best opportunities up to cycle limit
+4. **Forward simulate**: Verify feasibility with SoC/power constraints
 
-#### Minimum Run Constraints:
-- Enforces 15-minute minimum operation duration
-- Prevents rapid switching that's impractical for real batteries
-- Groups operations into continuous blocks
+#### Limitations:
+- May violate constraints when opportunities stack
+- Requires post-simulation feasibility check
 
-## Network Tariff Integration
+## Market & Engineering Constraints
 
-### Tariff Components:
-1. **Time-of-Use Energy Charges**:
-   - Solar Soak (10am-3pm): Lower or negative rates
-   - Peak (3pm-9pm): Higher rates
-   - Off-Peak (9pm-10am): Moderate rates
+### Power & Energy
+- **SoC update**: `SoC_{t+1} = SoC_t + η_ch × P_ch × Δt - P_dis × Δt / η_dis`
+- **Power limits**: -P_max ≤ P_t ≤ P_max (no simultaneous charge/discharge)
+- **SoC bounds**: 0 ≤ SoC_t ≤ Capacity
+- **Time step**: Δt = 5/60 hours (5-minute NEM dispatch interval)
 
-2. **Standing Charges**:
-   - Fixed daily connection charge
-   - Pro-rated from annual amount
+### Efficiency Model
+- **Round-trip efficiency**: η_rt = η_ch × η_dis
+- **Current implementation**: η_ch = η_dis = √η_rt
+- **Recommended**: Separate charge/discharge efficiencies
 
-3. **Demand Charges** (Sub-Transmission only):
-   - Based on peak kVA in each period
-   - Monthly charge pro-rated daily
+### Price Data
+- **Source**: AEMO NEMWeb 5-minute dispatch prices (RRP)
+- **Default**: Raw prices (captures full volatility)
+- **Optional**: Winsorised mode for risk management (99.5th percentile)
 
-### Net Price Calculation:
-```
-Net Buy Price = Wholesale Price + Network Import Charge
-Net Sell Price = Wholesale Price + Network Export Credit
-```
+### Minimum Run Constraints
+- **Requirement**: 15-minute minimum operation (3 consecutive intervals)
+- **Implementation options**:
+  1. Augmented DP state (recommended but complex)
+  2. Post-processing merge (current approach)
 
-## Efficiency Modeling
+## Network Tariffs
 
-### Round-Trip Efficiency:
-- Total round-trip efficiency: η (typically 85-90%)
-- Split equally between charge and discharge: √η each
-- Energy losses accounted at each conversion
+### Site Configuration
+- **Front-of-meter (FoM)**: Settles at RRP only
+- **Behind-the-meter (BtM)**: Includes network charges
 
-### Power and Energy Constraints:
-- Maximum charge/discharge power (MW)
-- Battery capacity (MWh)
-- State of Charge limits (0-100%)
+### Time-of-Use Structure
+- **Solar soak**: 10am-3pm (typically negative or low rates)
+- **Peak**: 3pm-9pm (highest rates)
+- **Off-peak**: 9pm-10am (moderate rates)
+
+### Demand Charges
+- **Calculation**: Monthly peak kVA (not daily pro-rata)
+- **Single-day proxy**: Nominated headroom + shadow price for exceedance
 
 ## Performance Metrics
 
-### Key Calculations:
-1. **Average Spread**: 
-   ```
-   Avg Spread = (Avg Discharge Price * η) - Avg Charge Price
-   ```
+### Revenue Calculation
+```
+Net Revenue = Wholesale Revenue - Network Charges - Standing Charges - Demand Charges
+```
 
-2. **Cycles per Day**:
-   ```
-   Cycles = Total Energy Throughput / (2 * Battery Capacity)
-   ```
+### Realised Spread
+```
+Realised Spread = (Σ Discharge Revenue - Σ Charge Cost) / Σ Discharged MWh
+```
 
-3. **Utilization Rate**:
-   ```
-   Utilization = Active Intervals / Total Intervals * 100%
-   ```
+### Cycle Counting
+```
+Cycles = Total Throughput / (2 × Capacity)
+```
 
-4. **Revenue Breakdown**:
-   - Wholesale Revenue: Energy arbitrage profit
-   - Network Charges: Time-of-use charges/credits
-   - Standing Charges: Fixed daily costs
-   - Demand Charges: Peak power costs
+## Validation Tests
 
-## Data Sources
-
-### Primary: AEMO NEMWeb
-- Real-time 5-minute settlement prices
-- Historical dispatch data
-- Direct from Australian Energy Market Operator
-
-### Fallback: Simulated Data
-- Duck curve pattern simulation
-- Weekend/weekday variations
-- Realistic price volatility modeling
+1. **Cyclic operation**: End SoC ≈ Start SoC (within tolerance)
+2. **Monotone cycles**: Throughput penalty ↑ → Cycles ↓
+3. **Constraint satisfaction**: No SoC violations, power limits respected
+4. **FoM/BtM consistency**: Network charges only affect BtM mode
 
 ## Implementation Notes
 
-### Computational Efficiency:
-- DP optimizer: O(S × T × A) where S=states, T=time steps, A=actions
-- Heuristic: O(T² log T) for opportunity sorting
-- Real-time processing: <1 second for daily optimization
-
-### Numerical Stability:
+### Numerical Stability
 - Fixed-point arithmetic for SoC calculations
-- Careful handling of floating-point comparisons
+- Careful handling of efficiency chains
 - Bounds checking on all operations
 
-### Calibration Parameters:
-- Salvage value: 10% of average daily price
-- Throughput cost: Dynamically calibrated via bisection
-- Smoothing window: 5 intervals for reservation prices
-- Price clamp: $500/MWh maximum
-
-## Algorithm Selection
-
-### When to use DP Optimizer:
-- Need globally optimal solution
-- Complex tariff structures
-- Research and analysis
-- Benchmark comparisons
-
-### When to use Heuristic:
-- Quick estimates needed
-- Simple price patterns
-- Real-time applications
-- Initial feasibility studies
+### Throughput Cost Calibration
+- Bisection search to achieve target cycles
+- Assumes monotonicity (generally holds)
+- Fallback to grid search if non-monotonic
 
 ## Future Enhancements
 
-1. **Machine Learning Integration**:
-   - Price forecasting models
-   - Pattern recognition for opportunity identification
-   - Adaptive parameter tuning
+### Near-term
+1. **Augmented DP state** for minimum run enforcement
+2. **Separate η_ch, η_dis** with temperature dependence
+3. **Ramp rate constraints**: |P_t - P_{t-1}| ≤ ramp_rate × Δt
+4. **MLF incorporation** for transmission losses
 
-2. **Multi-Day Optimization**:
-   - Consider weekly cycles
-   - Account for battery degradation
-   - Seasonal patterns
+### Medium-term
+1. **FCAS co-optimisation** (not just post-hoc revenue)
+2. **Multi-day optimisation** with rolling horizon
+3. **Stochastic DP** for price uncertainty
+4. **Network constraint awareness**
 
-3. **Risk Management**:
-   - Uncertainty quantification
-   - Robust optimization approaches
-   - Scenario analysis
+### Long-term
+1. **Portfolio optimisation** across multiple assets
+2. **Virtual Power Plant (VPP) coordination**
+3. **Derivative hedging integration**
+4. **Machine learning price forecasts**
 
-4. **Market Integration**:
-   - FCAS market participation
-   - Network support services
-   - Virtual Power Plant coordination
+## Technical References
 
-## References
+- Bertsekas, D. (2017). *Dynamic Programming and Optimal Control*
+- AEMO (2024). *NEM Dispatch and Pricing*
+- AusNet Services (2024). *Network Tariff Structure Statement*
 
-- Dynamic Programming and Optimal Control (Bertsekas)
-- Energy Storage Valuation (EPRI)
-- Australian Energy Market Operator (AEMO) documentation
-- AusNet Services Network Tariff Structure Statement 2024-25
+---
+
+**Note**: This document reflects the current implementation status. Features marked as "limitations" or "future enhancements" are documented for transparency and roadmap planning.
