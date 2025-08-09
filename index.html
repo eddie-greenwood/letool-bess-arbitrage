@@ -1024,7 +1024,6 @@
                     display: inline-flex;
                     gap: 25px;
                     padding: 0 20px;
-                    animation: scroll 30s linear infinite;
                     white-space: nowrap;
                 ">
                     <!-- Price items will be inserted here -->
@@ -1039,9 +1038,19 @@
         </div>
         
         <style>
+            #tickerInner {
+                animation: scroll 20s linear infinite;
+                /* Start animation immediately visible */
+                animation-delay: -5s;
+            }
+            
             @keyframes scroll {
-                0% { transform: translateX(0); }
-                100% { transform: translateX(-50%); }
+                from { 
+                    transform: translateX(0%); 
+                }
+                to { 
+                    transform: translateX(-33.33%); 
+                }
             }
             
             @keyframes pulse {
@@ -1099,7 +1108,8 @@
                 }
                 
                 #tickerInner {
-                    animation-duration: 20s;
+                    animation: scroll 12s linear infinite;
+                    animation-delay: -3s;
                 }
             }
         </style>

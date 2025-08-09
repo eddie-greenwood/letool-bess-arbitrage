@@ -1943,8 +1943,9 @@ async function fetchLivePrices() {
                 }
             }
             
-            // Duplicate content for smooth scrolling
-            tickerInner.innerHTML = tickerHTML + '&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;' + tickerHTML;
+            // Triple content for seamless scrolling (no gaps)
+            const separator = '<span style="margin: 0 15px; color: #666;">•</span>';
+            tickerInner.innerHTML = tickerHTML + separator + tickerHTML + separator + tickerHTML;
             
             // Update timestamp
             if (lastUpdateEl) {
