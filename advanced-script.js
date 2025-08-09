@@ -101,14 +101,28 @@ function cPerKwhToDollarPerMWh(cents) {
     return (cents || 0) * 10;
 }
 
-// Helper: Determine time-of-use period for a given timestamp
-function getTariffPeriod(timestamp, windows) {
+// Helper: Determine time-of-use period for a given time or timestamp
+// FIXED: Now accepts either a time string (HH:MM) or timestamp, with time string preferred
+function getTariffPeriod(timeOrTimestamp, windows, timeField = null) {
     if (!windows || Object.keys(windows).length === 0) return 'offPeak';
     
-    const date = new Date(timestamp);
-    const hours = date.getHours();
-    const minutes = date.getMinutes();
-    const timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    let timeStr;
+    
+    // If we have a separate time field (AEST time), use that directly
+    if (timeField && typeof timeField === 'string') {
+        timeStr = timeField;
+    }
+    // If timeOrTimestamp is already a time string (HH:MM format)
+    else if (typeof timeOrTimestamp === 'string' && timeOrTimestamp.match(/^\d{2}:\d{2}$/)) {
+        timeStr = timeOrTimestamp;
+    }
+    // Otherwise, extract time from timestamp (fallback, less reliable due to timezone issues)
+    else {
+        const date = new Date(timeOrTimestamp);
+        const hours = date.getHours();
+        const minutes = date.getMinutes();
+        timeStr = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
     
     // Check each window
     if (windows.solarSoak) {
@@ -136,12 +150,183 @@ let utilizationChart = null;
 let analysisResults = null;
 let currentDayIndex = 0;
 
+// Live Price Ticker functionality
+let priceHistory = {};
+let cryptoPrices = null;
+
+async function fetchCryptoPrices() {
+    try {
+        const response = await fetch('https://nem-harvester.eddie-37d.workers.dev/api/crypto-prices');
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.data) {
+                cryptoPrices = data.data;
+            }
+        }
+    } catch (error) {
+        console.log('Crypto prices unavailable');
+    }
+}
+
+async function fetchLivePrices() {
+    const tickerInner = document.getElementById('tickerInner');
+    const lastUpdateEl = document.getElementById('lastUpdate');
+    
+    try {
+        // Show loading state
+        if (!tickerInner.innerHTML || tickerInner.innerHTML.includes('Loading')) {
+            tickerInner.innerHTML = '<div class="ticker-item"><span style="color: #00E87E;">Loading prices...</span></div>';
+        }
+        
+        // Fetch AEMO prices and crypto prices in parallel
+        const [aemoResponse] = await Promise.all([
+            fetch('https://nem-harvester.eddie-37d.workers.dev/api/live-prices'),
+            fetchCryptoPrices() // Fetch crypto but don't block on it
+        ]);
+        
+        if (!aemoResponse.ok) {
+            throw new Error(`HTTP ${aemoResponse.status}`);
+        }
+        
+        const data = await aemoResponse.json();
+        console.log('Live prices data:', data); // Debug log
+        
+        if (data.success && data.data && Object.keys(data.data).length > 0) {
+            const regions = Object.keys(data.data).sort(); // Sort regions for consistent order
+            const validResults = regions.map(region => ({
+                region: region,
+                price: data.data[region].price || 0,
+                prevPrice: data.data[region].prevPrice || 0,
+                change: data.data[region].change || 0,
+                changePercent: data.data[region].changePercent || 0,
+                source: data.data[region].source || 'unknown',
+                isCrypto: false
+            })).filter(r => r.price !== undefined); // Filter out invalid entries
+        
+            // Add crypto prices if available (easter egg)
+            if (cryptoPrices) {
+                // Add BTC
+                if (cryptoPrices.BTC) {
+                    validResults.push({
+                        region: '₿ BTC',
+                        price: cryptoPrices.BTC.price,
+                        prevPrice: cryptoPrices.BTC.price / (1 + cryptoPrices.BTC.change24h / 100),
+                        change: cryptoPrices.BTC.price * (cryptoPrices.BTC.change24h / 100),
+                        changePercent: cryptoPrices.BTC.change24h,
+                        isCrypto: true
+                    });
+                }
+                // Add LTC
+                if (cryptoPrices.LTC) {
+                    validResults.push({
+                        region: 'Ł LTC',
+                        price: cryptoPrices.LTC.price,
+                        prevPrice: cryptoPrices.LTC.price / (1 + cryptoPrices.LTC.change24h / 100),
+                        change: cryptoPrices.LTC.price * (cryptoPrices.LTC.change24h / 100),
+                        changePercent: cryptoPrices.LTC.change24h,
+                        isCrypto: true
+                    });
+                }
+            }
+            
+            if (validResults.length > 0) {
+                // Clear and rebuild ticker
+                let tickerHTML = '';
+                
+                // Create 3 copies for continuous scrolling
+                for (let copy = 0; copy < 3; copy++) {
+                    validResults.forEach(result => {
+                        if (result.isCrypto) {
+                            // Crypto styling
+                            const changeClass = result.change >= 0 ? 'up' : 'down';
+                            const arrow = result.change >= 0 ? '↑' : '↓';
+                            const priceStr = result.price > 1000 ? 
+                                `$${(result.price/1000).toFixed(1)}k` : 
+                                `$${result.price.toFixed(2)}`;
+                            
+                            tickerHTML += `
+                                <span class="ticker-item ticker-crypto">
+                                    <span class="ticker-region" style="color: #ffd700;">${result.region}</span>
+                                    <span class="ticker-price" style="color: #ffd700;">${priceStr}</span>
+                                    <span class="ticker-change ${changeClass}">
+                                        ${arrow} ${Math.abs(result.changePercent).toFixed(1)}%
+                                    </span>
+                                </span>
+                            `;
+                        } else {
+                            // AEMO styling
+                            const priceClass = result.price > 100 ? 'positive' : result.price < 0 ? 'negative' : 'neutral';
+                            const changeClass = result.change >= 0 ? 'up' : 'down';
+                            const arrow = result.change >= 0 ? '↑' : '↓';
+                            
+                            tickerHTML += `
+                                <span class="ticker-item">
+                                    <span class="ticker-region">${result.region}</span>
+                                    <span class="ticker-price ${priceClass}">$${result.price.toFixed(2)}</span>
+                                    <span class="ticker-change ${changeClass}">
+                                        ${arrow} ${Math.abs(result.changePercent).toFixed(1)}%
+                                    </span>
+                                </span>
+                            `;
+                        }
+                    });
+                }
+                
+                tickerInner.innerHTML = tickerHTML;
+                
+                // Update last update time
+                const now = new Date();
+                const timeStr = now.toLocaleTimeString('en-AU', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    timeZone: 'Australia/Sydney'
+                });
+                lastUpdateEl.textContent = `Updated ${timeStr} AEST`;
+            } else {
+                // No valid results
+                tickerInner.innerHTML = '<div class="ticker-item"><span style="color: #ffc107;">No price data available</span></div>';
+                lastUpdateEl.textContent = 'No data';
+            }
+        } else {
+            // No data received
+            tickerInner.innerHTML = '<div class="ticker-item"><span style="color: #ffc107;">Waiting for data...</span></div>';
+            lastUpdateEl.textContent = 'Waiting...';
+        }
+        
+    } catch (error) {
+        console.error('Error fetching live prices:', error);
+        // Show error but keep any existing data
+        if (!tickerInner.innerHTML || tickerInner.innerHTML.includes('Loading')) {
+            tickerInner.innerHTML = '<div class="ticker-item"><span style="color: #ff6b6b;">Connection error - retrying...</span></div>';
+        }
+        lastUpdateEl.textContent = 'Retry in 60s';
+    }
+}
+
+// Initialize ticker
+function initializeTicker() {
+    // Show loading immediately
+    const tickerInner = document.getElementById('tickerInner');
+    if (tickerInner) {
+        tickerInner.innerHTML = '<span class="ticker-item"><span style="color: #00E87E;">Loading live prices...</span></span>';
+    }
+    
+    // Fetch immediately
+    fetchLivePrices();
+    
+    // Update every 30 seconds for fresher data
+    setInterval(fetchLivePrices, 30000);
+}
+
 /**
  * Initialize the application
  */
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Lé Tool by Greenwood Energy - Initialized');
     console.log('BESS Opportunity Dashboard v1.0');
+    
+    // Initialize live price ticker
+    initializeTicker();
     
     // Set default dates (last 7 days)
     setTimePeriod('7d');
@@ -299,6 +484,9 @@ function switchTab(tab) {
  * Main analysis function
  */
 async function analyzeOpportunity() {
+    // Reset the real data flag for new analysis
+    hasRealDataInPeriod = false;
+    
     const region = document.getElementById('region').value;
     const startDate = document.getElementById('startDate').value;
     const endDate = document.getElementById('endDate').value;
@@ -350,7 +538,19 @@ async function analyzeOpportunity() {
             document.getElementById('progressText').textContent = 
                 `Analyzing ${dateStr} (${i + 1}/${days})`;
             
-            const dayData = await fetchDayData(dateStr, region);
+            let dayData;
+            try {
+                dayData = await fetchDayData(dateStr, region);
+            } catch (fetchError) {
+                console.error(`No data for ${dateStr}:`, fetchError);
+                // Skip this day if no data available
+                continue;
+            }
+            
+            if (!dayData || dayData.length === 0) {
+                console.error(`Empty data for ${dateStr}`);
+                continue;
+            }
             
             const optimizationMode = document.getElementById('optimizationMode').value;
             const throughputCost = parseFloat(document.getElementById('throughputCost').value) || 0;
@@ -450,6 +650,9 @@ async function analyzeOpportunity() {
     }
 }
 
+// Track whether we've gotten real data for the analysis period
+let hasRealDataInPeriod = false;
+
 /**
  * Fetch day data from AEMO NEMWeb via Pages Functions
  */
@@ -468,10 +671,26 @@ async function fetchDayData(date, region) {
                 
                 // Check if we got valid data from Worker
                 if (data.success && data.data && data.data.length > 0) {
-                    document.getElementById('dataSource').textContent = 
-                        data.source === 'aemo-nemweb' ? '🟢 LIVE data from AEMO NEMWeb' :
-                        '⚠️ SIMULATED data (API unavailable)';
-                    document.getElementById('dataSource').style.display = 'block';
+                    // Mark that we got real data if it's not simulation
+                    if (data.source !== 'simulation') {
+                        hasRealDataInPeriod = true;
+                        
+                        // Update the data source display with the real source
+                        document.getElementById('dataSource').textContent = 
+                            data.source === 'aemo-stored' ? '🟢 LIVE data from NEM Harvester (R2 Storage)' :
+                            data.source === 'aemo-fresh' ? '🟢 Fresh data from NEM Harvester' :
+                            data.source === 'opennem-live' ? '🟢 LIVE data from OpenNEM via Harvester' :
+                            data.source === 'nem-harvester' ? '🟢 Data from NEM Harvester' :
+                            data.source === 'aemo-nemweb' ? '🟢 LIVE data from AEMO NEMWeb' :
+                            '🟢 Data from NEM Harvester';
+                        document.getElementById('dataSource').style.display = 'block';
+                    } else if (!hasRealDataInPeriod) {
+                        // No simulation - show error if no real data
+                        document.getElementById('dataSource').textContent = 
+                            '❌ No data available';
+                        document.getElementById('dataSource').style.display = 'block';
+                        throw new Error('No real data available');
+                    }
                     return data.data; // Return the intervals directly
                 } else if (!data.success) {
                     console.error('API error:', data.error);
@@ -484,67 +703,16 @@ async function fetchDayData(date, region) {
         
     } catch (error) {
         console.error('Fetch failed:', error);
-        document.getElementById('dataSource').textContent = 
-            'Using simulated data (API unavailable)';
-        return simulateMarketData(date, region);
+        // NO SIMULATION - throw error if no data
+        if (!hasRealDataInPeriod) {
+            document.getElementById('dataSource').textContent = 
+                '❌ No data available - check harvester status';
+        }
+        throw new Error('No data available for ' + date);
     }
 }
 
-/**
- * Simulate market data when API unavailable
- */
-function simulateMarketData(date, region) {
-    const intervals = [];
-    const hoursInDay = 24;
-    const intervalsPerHour = 12;
-    
-    const dateObj = new Date(date);
-    const dayOfWeek = dateObj.getDay();
-    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-    
-    for (let hour = 0; hour < hoursInDay; hour++) {
-        for (let interval = 0; interval < intervalsPerHour; interval++) {
-            const time = hour + (interval * 5) / 60;
-            
-            let price = 80;
-            const weekendFactor = isWeekend ? 0.7 : 1.0;
-            
-            // Duck curve simulation
-            if (time >= 23 || time < 5) {
-                price = (30 + Math.random() * 20) * weekendFactor;
-            } else if (time >= 5 && time < 7) {
-                price = (50 + (time - 5) * 30 + Math.random() * 20) * weekendFactor;
-            } else if (time >= 7 && time < 9) {
-                price = (120 + Math.random() * 40) * weekendFactor;
-            } else if (time >= 9 && time < 15) {
-                const solarPeak = 12;
-                const solarImpact = Math.exp(-Math.pow(time - solarPeak, 2) / 4);
-                price = (60 - solarImpact * 50 + Math.random() * 30) * weekendFactor;
-            } else if (time >= 15 && time < 17) {
-                price = (70 + (time - 15) * 20 + Math.random() * 20) * weekendFactor;
-            } else if (time >= 17 && time < 21) {
-                price = (150 + Math.random() * 50) * weekendFactor;
-            } else {
-                price = (100 - (time - 21) * 30 + Math.random() * 20) * weekendFactor;
-            }
-            
-            price += (Math.random() - 0.5) * 20;
-            
-            if (Math.random() < 0.02) {
-                price *= 2 + Math.random();
-            }
-            
-            intervals.push({
-                time: `${String(hour).padStart(2, '0')}:${String(interval * 5).padStart(2, '0')}`,
-                hour: hour,
-                minute: interval * 5,
-                price: Math.max(-50, Math.min(300, price))
-            });
-        }
-    }
-    
-    return intervals;
-}
+// NO SIMULATION - All fake data generation removed
 
 /**
  * Calculate arbitrage using Dynamic Programming optimizer
@@ -556,7 +724,8 @@ function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalP
     
     // Calculate network charges for each interval
     const networkData = data.map((d, i) => {
-        const period = tariff ? getTariffPeriod(d.timestamp || new Date(), tariff.windows) : 'offPeak';
+        // FIXED: Use the stored time field (AEST) instead of timestamp conversion
+        const period = tariff ? getTariffPeriod(d.timestamp || new Date(), tariff.windows, d.time) : 'offPeak';
         const importAdj = tariff ? cPerKwhToDollarPerMWh(tariff.energy_c_per_kwh.import[period]) : 0;
         const exportAdj = tariff ? cPerKwhToDollarPerMWh(tariff.energy_c_per_kwh.export[period]) : 0;
         
@@ -775,7 +944,8 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
         const operation = schedule[i];
         
         // Get tariff period and network charges
-        const period = tariff ? getTariffPeriod(data[i].timestamp || new Date(), tariff.windows) : 'offPeak';
+        // FIXED: Use the stored time field (AEST) instead of timestamp conversion
+        const period = tariff ? getTariffPeriod(data[i].timestamp || new Date(), tariff.windows, data[i].time) : 'offPeak';
         const importAdj = tariff ? cPerKwhToDollarPerMWh(tariff.energy_c_per_kwh.import[period]) : 0;
         const exportAdj = tariff ? cPerKwhToDollarPerMWh(tariff.energy_c_per_kwh.export[period]) : 0;
         
@@ -1266,6 +1436,7 @@ function updatePriceChart(dayResult) {
     
     if (priceChart) priceChart.destroy();
     
+    // Use all operations for complete day view
     const labels = dayResult.operations.map(op => op.time);
     const prices = dayResult.operations.map(op => op.price);
     
@@ -1382,9 +1553,16 @@ function updatePriceChart(dayResult) {
                     display: true,
                     ticks: {
                         maxTicksLimit: 24,
+                        // FIXED: Use actual data times instead of assuming array index alignment
                         callback: function(val, index) {
-                            const hour = Math.floor(index / 12);
-                            return index % 12 === 0 ? `${hour}:00` : '';
+                            // Get the actual time from the data
+                            if (index < labels.length) {
+                                const dataTime = labels[index];
+                                const [hour, minute] = dataTime.split(':');
+                                // Only show labels on the hour (minute === '00')
+                                return minute === '00' ? `${parseInt(hour)}:00` : '';
+                            }
+                            return '';
                         }
                     }
                 },
@@ -1658,8 +1836,147 @@ function updateResultsTable(results) {
     totalRow.insertCell(4).textContent = results.totalEnergy.toFixed(1) + ' MWh';
 }
 
+// Crypto prices cache
+let cryptoPrices = null;
+
+// Fetch crypto prices
+async function fetchCryptoPrices() {
+    try {
+        const response = await fetch('https://nem-harvester.eddie-37d.workers.dev/api/crypto-prices');
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.data) {
+                cryptoPrices = data.data;
+                console.log('Crypto prices fetched:', cryptoPrices);
+            }
+        }
+    } catch (error) {
+        console.log('Crypto prices unavailable');
+    }
+}
+
+// Fetch live AEMO prices
+async function fetchLivePrices() {
+    const tickerInner = document.getElementById('tickerInner');
+    const lastUpdateEl = document.getElementById('lastUpdate');
+    
+    if (!tickerInner) return;
+    
+    try {
+        // Show loading only on first load
+        if (!tickerInner.innerHTML || tickerInner.innerHTML.includes('Loading')) {
+            tickerInner.innerHTML = '<span style="color: #00E87E;">Loading prices...</span>';
+        }
+        
+        // Fetch AEMO and crypto prices in parallel
+        const [aemoResponse] = await Promise.all([
+            fetch('https://nem-harvester.eddie-37d.workers.dev/api/live-prices'),
+            fetchCryptoPrices()
+        ]);
+        
+        if (!aemoResponse.ok) {
+            throw new Error(`HTTP ${aemoResponse.status}`);
+        }
+        
+        const data = await aemoResponse.json();
+        console.log('Live prices:', data);
+        
+        if (data.success && data.data) {
+            const regions = Object.keys(data.data).sort();
+            let tickerHTML = '';
+            
+            // Build ticker items for each region
+            regions.forEach(region => {
+                const regionData = data.data[region];
+                const price = regionData.price || 0;
+                const change = regionData.change || 0;
+                const changePercent = regionData.changePercent || 0;
+                const changeClass = change >= 0 ? 'up' : 'down';
+                const arrow = change >= 0 ? '↑' : '↓';
+                
+                tickerHTML += `
+                    <span class="ticker-item">
+                        <span class="ticker-region">${region}</span>
+                        <span class="ticker-price">$${price.toFixed(2)}</span>
+                        <span class="ticker-change ${changeClass}">
+                            ${arrow} ${Math.abs(changePercent).toFixed(1)}%
+                        </span>
+                    </span>`;
+            });
+            
+            // Add crypto prices if available
+            if (cryptoPrices) {
+                if (cryptoPrices.BTC) {
+                    const btcChange = cryptoPrices.BTC.change24h || 0;
+                    const btcClass = btcChange >= 0 ? 'up' : 'down';
+                    const btcArrow = btcChange >= 0 ? '↑' : '↓';
+                    const btcPrice = cryptoPrices.BTC.price || 0;
+                    
+                    tickerHTML += `
+                        <span class="ticker-item ticker-crypto">
+                            <span class="ticker-region" style="color: #ffd700;">₿ BTC</span>
+                            <span class="ticker-price" style="color: #ffd700;">
+                                $${btcPrice > 1000 ? (btcPrice/1000).toFixed(1) + 'k' : btcPrice.toFixed(2)}
+                            </span>
+                            <span class="ticker-change ${btcClass}">
+                                ${btcArrow} ${Math.abs(btcChange).toFixed(1)}%
+                            </span>
+                        </span>`;
+                }
+                
+                if (cryptoPrices.LTC) {
+                    const ltcChange = cryptoPrices.LTC.change24h || 0;
+                    const ltcClass = ltcChange >= 0 ? 'up' : 'down';
+                    const ltcArrow = ltcChange >= 0 ? '↑' : '↓';
+                    const ltcPrice = cryptoPrices.LTC.price || 0;
+                    
+                    tickerHTML += `
+                        <span class="ticker-item ticker-crypto">
+                            <span class="ticker-region" style="color: #c0c0c0;">Ł LTC</span>
+                            <span class="ticker-price" style="color: #c0c0c0;">
+                                $${ltcPrice.toFixed(2)}
+                            </span>
+                            <span class="ticker-change ${ltcClass}">
+                                ${ltcArrow} ${Math.abs(ltcChange).toFixed(1)}%
+                            </span>
+                        </span>`;
+                }
+            }
+            
+            // Duplicate content for smooth scrolling
+            tickerInner.innerHTML = tickerHTML + '&nbsp;&nbsp;&nbsp;•&nbsp;&nbsp;&nbsp;' + tickerHTML;
+            
+            // Update timestamp
+            if (lastUpdateEl) {
+                const now = new Date();
+                lastUpdateEl.textContent = now.toLocaleTimeString('en-AU', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching live prices:', error);
+        if (!tickerInner.innerHTML || tickerInner.innerHTML.includes('Loading')) {
+            tickerInner.innerHTML = '<span style="color: #ff6b6b;">Prices temporarily unavailable</span>';
+        }
+    }
+}
+
+// Initialize ticker
+function initializeTicker() {
+    // Start fetching immediately
+    fetchLivePrices();
+    
+    // Update every 60 seconds
+    setInterval(fetchLivePrices, 60000);
+}
+
 // Site mode change handler and optimization mode handler
 document.addEventListener('DOMContentLoaded', function() {
+    // Initialize ticker
+    initializeTicker();
+    
     const siteModeSelect = document.getElementById('siteMode');
     const tariffSelect = document.getElementById('tariff');
     const optimizationMode = document.getElementById('optimizationMode');

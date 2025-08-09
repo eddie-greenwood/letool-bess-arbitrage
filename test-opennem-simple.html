@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OpenNEM API Test</title>
+    <style>
+        body { 
+            font-family: monospace; 
+            background: #000; 
+            color: #0f0; 
+            padding: 20px;
+        }
+        pre { 
+            background: #111; 
+            padding: 10px; 
+            border: 1px solid #0f0;
+            overflow: auto;
+        }
+        button {
+            background: #0f0;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>OpenNEM API - Live NEM Prices</h1>
+    <p>This demonstrates that OpenNEM API is publicly accessible from any browser:</p>
+    
+    <button onclick="testAPI()">Fetch Current VIC1 Price</button>
+    <button onclick="testAllRegions()">Test All Regions</button>
+    
+    <pre id="output">Click a button to test the API...</pre>
+    
+    <script>
+        async function testAPI() {
+            const output = document.getElementById('output');
+            output.textContent = 'Fetching...';
+            
+            try {
+                // This is a direct API call - no authentication needed!
+                const response = await fetch('https://api.opennem.org.au/stats/price/NEM/VIC1?period=5m&last=1h');
+                const data = await response.json();
+                
+                if (data && data.data && data.data[0]) {
+                    const series = data.data[0];
+                    const prices = series.history.data;
+                    const latest = prices[prices.length - 1];
+                    
+                    output.textContent = `✅ API Working!\n\n`;
+                    output.textContent += `Region: ${series.code}\n`;
+                    output.textContent += `Latest Price: $${latest}/MWh\n`;
+                    output.textContent += `Data Points: ${prices.length}\n`;
+                    output.textContent += `Last Update: ${series.history.last}\n\n`;
+                    output.textContent += `Recent Prices (last 10):\n`;
+                    prices.slice(-10).forEach((p, i) => {
+                        output.textContent += `  ${i}: $${p}/MWh\n`;
+                    });
+                }
+            } catch (error) {
+                output.textContent = `❌ Error: ${error.message}`;
+            }
+        }
+        
+        async function testAllRegions() {
+            const output = document.getElementById('output');
+            output.textContent = 'Testing all regions...\n\n';
+            
+            const regions = ['NSW1', 'QLD1', 'SA1', 'TAS1', 'VIC1'];
+            
+            for (const region of regions) {
+                try {
+                    const response = await fetch(`https://api.opennem.org.au/stats/price/NEM/${region}?period=5m&last=1h`);
+                    const data = await response.json();
+                    
+                    if (data && data.data && data.data[0]) {
+                        const series = data.data[0];
+                        const prices = series.history.data;
+                        const latest = prices[prices.length - 1];
+                        
+                        output.textContent += `✅ ${region}: $${latest}/MWh (${prices.length} points)\n`;
+                    }
+                } catch (error) {
+                    output.textContent += `❌ ${region}: ${error.message}\n`;
+                }
+            }
+            
+            output.textContent += '\n\nAll regions tested! The API is working without any authentication.';
+            output.textContent += '\n\nAPI Endpoints:';
+            output.textContent += '\n  https://api.opennem.org.au/stats/price/NEM/{REGION}';
+            output.textContent += '\n  Parameters:';
+            output.textContent += '\n    - period=5m (5-minute intervals)';
+            output.textContent += '\n    - last=1h (last hour, 1d, 7d, etc)';
+            output.textContent += '\n    - start=YYYY-MM-DD (historical)';
+            output.textContent += '\n    - end=YYYY-MM-DD (historical)';
+        }
+    </script>
+</body>
+</html>

@@ -969,7 +969,145 @@
             </div>
             <p id="dataSource" style="font-size: 0.9rem; margin-top: 10px; color: #00E87E;"></p>
         </div>
-
+        
+        <!-- Live Price Ticker -->
+        <div id="livePriceTicker" style="
+            background: linear-gradient(90deg, #0A0E1A 0%, #1A2333 50%, #0A0E1A 100%);
+            padding: 8px 0;
+            border-bottom: 1px solid #00E87E;
+            margin-bottom: 25px;
+            overflow: hidden;
+            white-space: nowrap;
+            position: relative;
+            display: flex;
+            align-items: center;
+            min-height: 35px;
+            font-size: 13px;
+        ">
+            <div style="
+                padding: 0 15px;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                background: rgba(0, 232, 126, 0.1);
+                border-right: 1px solid #00E87E;
+                z-index: 10;
+                position: relative;
+                flex-shrink: 0;
+            ">
+                <span style="
+                    font-weight: 600;
+                    color: #00E87E;
+                    text-transform: uppercase;
+                    letter-spacing: 1px;
+                    display: flex;
+                    align-items: center;
+                    gap: 6px;
+                ">
+                    <span style="
+                        display: inline-block;
+                        width: 8px;
+                        height: 8px;
+                        background: #00E87E;
+                        border-radius: 50%;
+                        animation: pulse 2s infinite;
+                    "></span>
+                    LIVE
+                </span>
+            </div>
+            <div id="tickerContent" style="
+                flex: 1;
+                overflow: hidden;
+                position: relative;
+            ">
+                <div id="tickerInner" style="
+                    display: inline-flex;
+                    gap: 25px;
+                    padding: 0 20px;
+                    animation: scroll 30s linear infinite;
+                    white-space: nowrap;
+                ">
+                    <!-- Price items will be inserted here -->
+                </div>
+            </div>
+            <span id="lastUpdate" style="
+                font-size: 11px;
+                color: #999;
+                margin: 0 15px;
+                flex-shrink: 0;
+            "></span>
+        </div>
+        
+        <style>
+            @keyframes scroll {
+                0% { transform: translateX(0); }
+                100% { transform: translateX(-50%); }
+            }
+            
+            @keyframes pulse {
+                0%, 100% { opacity: 1; }
+                50% { opacity: 0.5; }
+            }
+            
+            .ticker-item {
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 0 10px;
+                white-space: nowrap;
+            }
+            
+            .ticker-region {
+                font-weight: 600;
+                color: #fff;
+            }
+            
+            .ticker-price {
+                font-weight: 500;
+                color: #00E87E;
+            }
+            
+            .ticker-change {
+                font-size: 0.85em;
+                padding: 2px 6px;
+                border-radius: 4px;
+            }
+            
+            .ticker-change.up {
+                color: #00E87E;
+                background: rgba(0, 232, 126, 0.1);
+            }
+            
+            .ticker-change.down {
+                color: #ff6b6b;
+                background: rgba(255, 107, 107, 0.1);
+            }
+            
+            .ticker-crypto .ticker-region {
+                font-weight: 700;
+            }
+            
+            @media (max-width: 768px) {
+                #livePriceTicker {
+                    font-size: 11px;
+                    min-height: 30px;
+                }
+                
+                .ticker-item {
+                    gap: 5px;
+                    padding: 0 8px;
+                }
+                
+                #tickerInner {
+                    animation-duration: 20s;
+                }
+            }
+        </style>
+        
+        <!-- Main content container -->
+        <div style="max-width: 1400px; margin: 0 auto; padding: 20px;">
+        
+        <!-- Controls -->
         <div class="controls">
             <div class="control-section">
                 <h3>Analysis Period</h3>

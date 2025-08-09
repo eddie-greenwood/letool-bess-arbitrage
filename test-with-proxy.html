@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OpenNEM via Proxy - Working!</title>
+    <style>
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, monospace; 
+            background: #000; 
+            color: #00E87E; 
+            padding: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 { 
+            border-bottom: 2px solid #00E87E;
+            padding-bottom: 10px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .region-card {
+            background: #111;
+            border: 1px solid #00E87E;
+            border-radius: 8px;
+            padding: 15px;
+        }
+        .region-name {
+            font-size: 1.2em;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .price {
+            font-size: 1.5em;
+            color: #00E87E;
+        }
+        .status {
+            padding: 10px;
+            background: #111;
+            border: 1px solid #333;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        button {
+            background: #00E87E;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #00C96A;
+        }
+        .error { color: #ff4444; }
+        .success { color: #00E87E; }
+    </style>
+</head>
+<body>
+    <h1>🔌 OpenNEM Real-Time NEM Prices</h1>
+    
+    <div class="status">
+        <strong>How this works:</strong><br>
+        1. Browser requests → Local proxy (localhost:3333)<br>
+        2. Proxy requests → OpenNEM API (api.opennem.org.au)<br>
+        3. OpenNEM returns data → Proxy adds CORS headers → Browser displays<br>
+        <br>
+        This proves OpenNEM API works perfectly from server-side (Cloudflare Workers)!
+    </div>
+    
+    <button onclick="fetchAllRegions()">Fetch All Regions</button>
+    <button onclick="startAutoUpdate()">Start Auto-Update (30s)</button>
+    <button onclick="stopAutoUpdate()">Stop Auto-Update</button>
+    
+    <div class="grid" id="regions">
+        <div class="region-card">
+            <div class="region-name">NSW1</div>
+            <div class="price" id="NSW1">--</div>
+            <div class="trend" id="NSW1-trend"></div>
+        </div>
+        <div class="region-card">
+            <div class="region-name">QLD1</div>
+            <div class="price" id="QLD1">--</div>
+            <div class="trend" id="QLD1-trend"></div>
+        </div>
+        <div class="region-card">
+            <div class="region-name">SA1</div>
+            <div class="price" id="SA1">--</div>
+            <div class="trend" id="SA1-trend"></div>
+        </div>
+        <div class="region-card">
+            <div class="region-name">TAS1</div>
+            <div class="price" id="TAS1">--</div>
+            <div class="trend" id="TAS1-trend"></div>
+        </div>
+        <div class="region-card">
+            <div class="region-name">VIC1</div>
+            <div class="price" id="VIC1">--</div>
+            <div class="trend" id="VIC1-trend"></div>
+        </div>
+    </div>
+    
+    <div class="status" id="log">
+        <strong>Status:</strong> Ready to fetch data...
+    </div>
+    
+    <script>
+        let autoUpdateInterval = null;
+        
+        async function fetchRegion(region) {
+            try {
+                const response = await fetch(`http://localhost:3333/api/price/${region}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const priceElem = document.getElementById(region);
+                    const trendElem = document.getElementById(`${region}-trend`);
+                    
+                    priceElem.textContent = `$${data.latest_price.toFixed(2)}`;
+                    priceElem.className = 'price success';
+                    
+                    // Show mini trend
+                    const last5 = data.prices.slice(-5);
+                    const trend = last5.map(p => p.toFixed(0)).join(' → ');
+                    trendElem.textContent = trend;
+                    
+                    return `✅ ${region}: $${data.latest_price.toFixed(2)}/MWh`;
+                } else {
+                    document.getElementById(region).textContent = 'Error';
+                    document.getElementById(region).className = 'price error';
+                    return `❌ ${region}: ${data.error}`;
+                }
+            } catch (error) {
+                document.getElementById(region).textContent = 'Failed';
+                document.getElementById(region).className = 'price error';
+                return `❌ ${region}: ${error.message}`;
+            }
+        }
+        
+        async function fetchAllRegions() {
+            const log = document.getElementById('log');
+            log.innerHTML = '<strong>Fetching all regions...</strong><br>';
+            
+            const regions = ['NSW1', 'QLD1', 'SA1', 'TAS1', 'VIC1'];
+            
+            for (const region of regions) {
+                const result = await fetchRegion(region);
+                log.innerHTML += result + '<br>';
+            }
+            
+            const now = new Date().toLocaleTimeString();
+            log.innerHTML += `<br><strong>Updated at ${now}</strong>`;
+        }
+        
+        function startAutoUpdate() {
+            if (autoUpdateInterval) return;
+            
+            fetchAllRegions(); // Initial fetch
+            autoUpdateInterval = setInterval(fetchAllRegions, 30000); // Every 30 seconds
+            
+            const log = document.getElementById('log');
+            log.innerHTML += '<br><strong class="success">Auto-update started (every 30s)</strong>';
+        }
+        
+        function stopAutoUpdate() {
+            if (autoUpdateInterval) {
+                clearInterval(autoUpdateInterval);
+                autoUpdateInterval = null;
+                
+                const log = document.getElementById('log');
+                log.innerHTML += '<br><strong class="error">Auto-update stopped</strong>';
+            }
+        }
+        
+        // Initial fetch on load
+        fetchAllRegions();
+    </script>
+</body>
+</html>
