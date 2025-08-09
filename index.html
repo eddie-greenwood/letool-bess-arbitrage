@@ -1039,14 +1039,12 @@
         
         <style>
             #tickerInner {
-                animation: scroll 20s linear infinite;
-                /* Start animation immediately visible */
-                animation-delay: -5s;
+                animation: scroll 30s linear infinite;
             }
             
             @keyframes scroll {
                 from { 
-                    transform: translateX(0%); 
+                    transform: translateX(0); 
                 }
                 to { 
                     transform: translateX(-33.33%); 
@@ -1096,6 +1094,7 @@
                 font-weight: 700;
             }
             
+            /* Mobile styles for ticker */
             @media (max-width: 768px) {
                 #livePriceTicker {
                     font-size: 11px;
@@ -1108,14 +1107,10 @@
                 }
                 
                 #tickerInner {
-                    animation: scroll 12s linear infinite;
-                    animation-delay: -3s;
+                    animation: scroll 20s linear infinite;
                 }
             }
         </style>
-        
-        <!-- Main content container -->
-        <div style="max-width: 1400px; margin: 0 auto; padding: 20px;">
         
         <!-- Controls -->
         <div class="controls">
