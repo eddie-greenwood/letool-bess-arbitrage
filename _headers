@@ -2,7 +2,18 @@
   Access-Control-Allow-Origin: *
   X-Frame-Options: DENY
   X-Content-Type-Options: nosniff
-  Cache-Control: public, max-age=3600
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/*.html
+  Cache-Control: no-cache, no-store, must-revalidate
+  Pragma: no-cache
+  Expires: 0
+
+/*.js
+  Cache-Control: public, max-age=300, must-revalidate
+
+/*.css
+  Cache-Control: public, max-age=300, must-revalidate
 
 /api/*
   Access-Control-Allow-Origin: *
