@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <meta name="description" content="Lé Tool - Advanced BESS Opportunity Dashboard powered by Greenwood Energy">
     <meta name="author" content="Greenwood Energy">
     <title>Lé Tool - BESS Opportunity Dashboard | Greenwood Energy</title>
@@ -35,6 +35,7 @@
             min-height: 100vh;
             padding: 20px;
             position: relative;
+            overflow-x: hidden;
         }
 
         body::before {
@@ -494,31 +495,292 @@
             color: var(--text-primary);
         }
 
+        /* ========== COMPREHENSIVE MOBILE OPTIMIZATIONS ========== */
+        
+        /* Prevent iOS zoom on input focus */
+        @supports (-webkit-touch-callout: none) {
+            input, select, textarea {
+                font-size: 16px !important;
+            }
+        }
+        
+        /* Tablet and Mobile Devices (768px and below) */
         @media (max-width: 768px) {
+            body {
+                padding: 10px;
+                -webkit-text-size-adjust: 100%;
+                -ms-text-size-adjust: 100%;
+            }
+            
+            .dashboard {
+                width: 100%;
+                overflow-x: hidden;
+            }
+            
+            .header {
+                padding: 20px 15px;
+                text-align: center;
+            }
+            
             .header h1 {
-                font-size: 2rem;
+                font-size: 1.5rem;
+                line-height: 1.3;
+            }
+            
+            .header p {
+                font-size: 0.9rem;
+                padding: 0 10px;
+            }
+            
+            .controls {
+                padding: 20px 15px;
+                margin-bottom: 20px;
+                border-radius: 15px;
             }
             
             .control-row {
                 flex-direction: column;
+                gap: 15px;
+            }
+            
+            .control-group {
+                width: 100%;
+                margin-bottom: 15px;
+            }
+            
+            .control-group label {
+                font-size: 0.8rem;
+                margin-bottom: 6px;
+            }
+            
+            .control-group input,
+            .control-group select {
+                font-size: 16px !important; /* Prevent iOS zoom */
+                padding: 14px 12px;
+                width: 100%;
+                min-height: 48px; /* Touch target */
+            }
+            
+            select {
+                background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2300E87E' stroke-width='2'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+                background-repeat: no-repeat;
+                background-position: right 10px center;
+                background-size: 20px;
+                padding-right: 40px;
             }
             
             .btn {
                 width: 100%;
+                min-height: 48px; /* Touch target */
+                padding: 14px 20px;
+                font-size: 15px !important;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
-
+            
+            .time-period-buttons {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .period-btn {
+                padding: 10px 12px;
+                font-size: 0.85rem;
+                min-width: 45px;
+            }
+            
+            .metrics {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+                margin-bottom: 20px;
+            }
+            
+            .metric-card {
+                padding: 15px 10px;
+                border-radius: 15px;
+            }
+            
+            .metric-label {
+                font-size: 0.65rem !important;
+                line-height: 1.2;
+                margin-bottom: 5px;
+                letter-spacing: 0.2px;
+            }
+            
+            .metric-value {
+                font-size: 1.2rem;
+            }
+            
+            .metric-unit {
+                font-size: 0.7rem;
+            }
+            
+            /* Logo adjustments */
+            .logo-container {
+                flex-wrap: wrap;
+                justify-content: center;
+                gap: 8px;
+                margin-bottom: 15px;
+            }
+            
+            .logo-container > span {
+                font-size: 1.8rem !important;
+            }
+            
+            .logo-le, .logo-tool {
+                font-size: 2rem !important;
+            }
+            
+            .logo-greenwood, .logo-energy {
+                font-size: 1.6rem !important;
+            }
+            
+            .brand-divider {
+                display: none;
+            }
+            
+            /* Navigation tabs */
+            .nav-tabs {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                padding: 15px 10px;
+                justify-content: flex-start;
+            }
+            
+            .nav-tabs::-webkit-scrollbar {
+                display: none;
+            }
+            
+            .nav-tab {
+                flex-shrink: 0;
+                padding: 10px 15px;
+                font-size: 0.85rem;
+                min-width: fit-content;
+            }
+            
+            /* Charts */
+            .chart-container {
+                padding: 20px 15px;
+                margin-bottom: 20px;
+                border-radius: 15px;
+            }
+            
+            .chart-title {
+                font-size: 1.1rem;
+            }
+            
+            .chart-wrapper {
+                height: 280px;
+            }
+            
+            .chart-wrapper.small {
+                height: 200px;
+            }
+            
+            /* Tables */
+            .results-table {
+                padding: 15px 10px;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            table {
+                min-width: 500px;
+                font-size: 0.85rem;
+            }
+            
+            th, td {
+                padding: 8px 6px;
+                font-size: 0.8rem;
+            }
+            
+            /* Info sections */
+            .info {
+                padding: 15px;
+                margin: 15px 0;
+                font-size: 0.9rem;
+            }
+            
+            #dataSource {
+                font-size: 0.85rem;
+                padding: 10px;
+            }
+        }
+        
+        /* Small Mobile Devices (480px and below) */
+        @media (max-width: 480px) {
+            body {
+                padding: 5px;
+            }
+            
+            .header h1 {
+                font-size: 1.2rem;
+            }
+            
+            .controls {
+                padding: 15px 10px;
+            }
+            
             .metrics {
                 grid-template-columns: 1fr;
+                gap: 8px;
             }
-
-            .logo-container {
-                flex-direction: column;
-                gap: 10px;
+            
+            .time-period-buttons {
+                grid-template-columns: repeat(2, 1fr);
+                display: grid;
+                gap: 8px;
             }
-
-            .brand-divider {
-                width: 60px;
-                height: 2px;
+            
+            .period-btn {
+                width: 100%;
+            }
+            
+            .logo-le, .logo-tool {
+                font-size: 1.5rem !important;
+            }
+            
+            .logo-greenwood, .logo-energy {
+                font-size: 1.3rem !important;
+            }
+            
+            .nav-tab {
+                padding: 8px 12px;
+                font-size: 0.8rem;
+            }
+            
+            .chart-wrapper {
+                height: 250px;
+            }
+        }
+        
+        /* Landscape Mode */
+        @media (max-height: 600px) and (orientation: landscape) {
+            .header {
+                padding: 10px 15px;
+            }
+            
+            .header h1 {
+                font-size: 1.3rem;
+            }
+            
+            .metrics {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 8px;
+            }
+            
+            .metric-card {
+                padding: 10px;
+            }
+            
+            .metric-value {
+                font-size: 1rem;
+            }
+            
+            .chart-wrapper {
+                height: 200px;
             }
         }
 
