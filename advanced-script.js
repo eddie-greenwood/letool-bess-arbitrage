@@ -684,8 +684,8 @@ function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalP
         return calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalPower, newThroughputCost);
     }
     
-    // Cap the reported cycles at maxCycles even if algorithm found more
-    const reportedCycles = Math.min(result.cycles, maxCycles);
+    // Report actual cycles, not the target
+    const reportedCycles = result.cycles;
     
     // Calculate total revenue including all charges
     const totalRevenue = wholesaleRevenue - networkCharges - standingCharge - demandCharges;
@@ -704,6 +704,8 @@ function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalP
             total: totalRevenue
         },
         cycles: reportedCycles,
+        targetCycles: maxCycles,  // What we aimed for
+        actualCycles: result.cycles,  // What we actually got
         avgSpread: result.avgSpread,
         avgChargePrice: result.avgChargePrice,
         avgDischargePrice: result.avgDischargePrice,
