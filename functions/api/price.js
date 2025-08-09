@@ -94,6 +94,23 @@ export async function onRequestGet({ request, env }) {
     }
   } catch (error) {
     console.log('OpenElectricity v4 failed:', error.message);
+    // Return error details for debugging
+    return new Response(JSON.stringify({
+      success: false,
+      source: 'error',
+      error: error.message,
+      stage: 'openelectricity-v4',
+      debug: {
+        hasApiKey: !!API_KEY,
+        errorType: error.name
+      }
+    }), {
+      status: 200, // Return 200 so we can see the error
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
   }
 
   // 2) Try AEMO NEMWeb as fallback (public CSV data)
