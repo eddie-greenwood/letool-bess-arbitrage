@@ -642,11 +642,11 @@
             
             /* Navigation tabs */
             .nav-tabs {
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-                scrollbar-width: none;
+                display: flex;
+                justify-content: space-between;
+                gap: 8px;
                 padding: 15px 10px;
-                justify-content: flex-start;
+                overflow: visible;
             }
             
             .nav-tabs::-webkit-scrollbar {
@@ -654,11 +654,13 @@
             }
             
             .nav-tab {
-                flex-shrink: 0;
-                padding: 8px 12px;
-                font-size: 0.75rem;
-                min-width: fit-content;
-                letter-spacing: 0.3px;
+                flex: 1;
+                padding: 10px 8px;
+                font-size: 0.82rem;
+                min-width: 70px;
+                max-width: 120px;
+                letter-spacing: 0.2px;
+                text-align: center;
             }
             
             /* Charts */
@@ -748,9 +750,11 @@
             }
             
             .nav-tab {
-                padding: 6px 10px;
-                font-size: 0.7rem;
-                letter-spacing: 0.2px;
+                flex: 1;
+                padding: 8px 6px;
+                font-size: 0.75rem;
+                letter-spacing: 0.1px;
+                min-width: auto;
             }
             
             .chart-wrapper {
@@ -1123,21 +1127,13 @@
         </div>
 
         <div class="nav-tabs" id="navTabs" style="display: none;">
-            <button class="nav-tab active" onclick="switchTab('daily')">Daily Analysis</button>
-            <button class="nav-tab" onclick="switchTab('summary')">Period Summary</button>
-            <button class="nav-tab" onclick="switchTab('detailed')">Detailed View</button>
+            <button class="nav-tab active" onclick="switchTab('daily')">Daily</button>
+            <button class="nav-tab" onclick="switchTab('summary')">Summary</button>
+            <button class="nav-tab" onclick="switchTab('detailed')">Details</button>
         </div>
 
         <div id="dailyTab" class="tab-content active">
-            <div class="chart-container" id="socChartContainer" style="display: none;">
-                <h3 class="chart-title">
-                    <span>Battery State of Charge (SoC)</span>
-                </h3>
-                <div class="chart-wrapper">
-                    <canvas id="socChart"></canvas>
-                </div>
-            </div>
-
+            <!-- SoC chart removed - now integrated into price chart -->
             <div class="chart-container" id="priceChartContainer" style="display: none;">
                 <h3 class="chart-title">
                     <span>Price, Operations & State of Charge</span>
