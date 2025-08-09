@@ -432,6 +432,9 @@
             width: 20px;
             height: 20px;
             border-radius: 4px;
+        }
+        
+        .legend-color:not([style*="border:"]) {
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
@@ -806,12 +809,20 @@
                         <span style="color: #ffffff;">Market Price</span>
                     </div>
                     <div class="legend-item">
-                        <div class="legend-color" style="background: #00E87E;"></div>
-                        <span style="color: #ffffff;">Charging</span>
+                        <div class="legend-color" style="background: rgba(0, 232, 126, 0.3);"></div>
+                        <span style="color: #ffffff;">Charging Period</span>
                     </div>
                     <div class="legend-item">
-                        <div class="legend-color" style="background: #FF6B6B;"></div>
-                        <span style="color: #ffffff;">Discharging</span>
+                        <div class="legend-color" style="background: rgba(255, 107, 107, 0.3);"></div>
+                        <span style="color: #ffffff;">Discharging Period</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: none; border: 1px dashed #4A90E2;"></div>
+                        <span style="color: #ffffff;">Buy Below (Blue)</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background: none; border: 1px dashed #E94B3C;"></div>
+                        <span style="color: #ffffff;">Sell Above (Red)</span>
                     </div>
                 </div>
             </div>
