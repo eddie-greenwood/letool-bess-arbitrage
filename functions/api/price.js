@@ -39,13 +39,24 @@ export async function onRequestGet({ request, env }) {
     console.log('OpenElectricity response keys:', Object.keys(json));
     
     // Check if we got data
-    if (json.data && Array.isArray(json.data)) {
-      // Find the series for our region
-      const series = json.data.find(s => 
+    if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+      console.log('Got data array with', json.data.length, 'items');
+      console.log('First item structure:', JSON.stringify(json.data[0], null, 2).substring(0, 200));
+      
+      // For energy data, there might be only one series without region grouping
+      // or the region might be in a different field
+      let series = json.data.find(s => 
         s.group?.network_region === region || 
         s.network_region === region ||
-        (s.group && s.group.network_region === region)
+        s.region === region ||
+        (s.group && (s.group.network_region === region || s.group.region === region))
       );
+      
+      // If no region match found and only one series, use it
+      if (!series && json.data.length === 1) {
+        console.log('Using single series (no region filter)');
+        series = json.data[0];
+      }
       
       console.log('Found series for region:', !!series);
       
