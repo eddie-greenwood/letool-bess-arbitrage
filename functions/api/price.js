@@ -3,9 +3,10 @@ export async function onRequestGet({ request, env }) {
   const region = (searchParams.get('region') || 'VIC1').toUpperCase();
   const date = searchParams.get('date') || new Date().toISOString().split('T')[0];
   
-  // Use environment variable for API key (set in Cloudflare dashboard)
+  // Use environment variable for API key, fallback to hardcoded (temporary)
+  // TODO: Remove hardcoded key after confirming env variable works
   const API_KEY = env?.OE_API_KEY || 'oe_3ZYA5q2YBHGz5y8ZFafkbTPF';
-  console.log('API Key available:', !!API_KEY, 'From env:', !!env?.OE_API_KEY);
+  console.log('Using API key:', API_KEY ? 'Yes' : 'No', ', From env:', !!env?.OE_API_KEY);
   
   // 1) Try OpenElectricity v4 API with energy data (BASIC plan supports this)
   try {
