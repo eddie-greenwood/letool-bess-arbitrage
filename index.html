@@ -1039,8 +1039,15 @@
                         <input type="number" id="throughputCost" value="0" min="0" max="20" step="1" title="Cost per MWh of battery throughput to account for degradation">
                     </div>
                     <div class="control-group">
+                        <label for="siteMode">Site Mode</label>
+                        <select id="siteMode" title="Front-of-meter or Behind-the-meter configuration">
+                            <option value="FoM">Front-of-Meter (FoM)</option>
+                            <option value="BtM">Behind-the-Meter (BtM)</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
                         <label for="tariff">Network Tariff</label>
-                        <select id="tariff" title="Network charges for battery import/export">
+                        <select id="tariff" title="Network charges for battery import/export (BtM only)" disabled>
                             <option value="NONE">No Network Charges</option>
                             <option value="AUSNET_UESH01T">AusNet UESH01T (HV) - Utility ESS</option>
                             <option value="AUSNET_UESS01T">AusNet UESS01T (Sub-Tx) - Utility ESS</option>

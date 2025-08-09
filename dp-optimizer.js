@@ -17,7 +17,8 @@ function optimiseBESS_DP({
   salvagePrice = null,    // $/MWh for leftover energy (null = auto-calculate)
   socSteps = null,        // number of discrete SoC levels (null = auto-scale)
   throughputCost = 0.0,   // $ per MWh of battery-side throughput (degradation)
-  maxCycles = null        // maximum cycles per day constraint
+  maxCycles = null,       // maximum cycles per day constraint
+  rampRateMW = null       // maximum ramp rate MW/interval (null = no limit)
 }) {
   const T = prices.length;
   const E = capacityMWh;
@@ -42,31 +43,43 @@ function optimiseBESS_DP({
   const V = Array.from({ length: T + 1 }, () => new Float64Array(socSteps).fill(-1e15));
   const action = Array.from({ length: T }, () => new Int16Array(socSteps).fill(0)); // delta in "SoC steps" per interval
 
-  // Terminal condition with salvage value
+  // Terminal condition with cyclic boundary
   if (socT !== null) {
     // Fixed terminal SoC (legacy mode)
     const endIdx = idxFromSoC(E * socT);
     V[T][endIdx] = 0.0;
   } else {
-    // Free terminal SoC with salvage value
-    // Auto-calculate salvage price as median of early morning prices if not provided
-    if (salvagePrice === null) {
-      const morningPrices = [];
-      for (let t = 0; t < Math.min(T, 60); t++) { // First 5 hours (60 intervals)
-        if (t % 12 < 60 && prices[t] !== null && !isNaN(prices[t])) {
-          morningPrices.push(prices[t]);
-        }
+    // Cyclic boundary condition: penalty for deviation from initial SoC
+    // This encourages the battery to return to its starting state
+    const startSoC = E * soc0;
+    
+    // Calculate a reference price for the penalty
+    // Use median of early morning prices as a proxy for typical charging cost
+    let referencePrice = 50; // Default fallback
+    const morningPrices = [];
+    for (let t = 0; t < Math.min(T, 60); t++) { // First 5 hours (60 intervals)
+      if (prices[t] !== null && !isNaN(prices[t])) {
+        morningPrices.push(prices[t]);
       }
+    }
+    if (morningPrices.length > 0) {
       morningPrices.sort((a, b) => a - b);
-      salvagePrice = morningPrices.length > 0 ? 
-        morningPrices[Math.floor(morningPrices.length / 2)] : 
-        Math.min(...prices.filter(p => !isNaN(p)));
+      referencePrice = morningPrices[Math.floor(morningPrices.length / 2)];
     }
     
-    // Set salvage value for all terminal states
+    // Set terminal value with quadratic penalty for deviation
     for (let i = 0; i < socSteps; i++) {
       const soc = socFromIdx(i);
-      V[T][i] = etaD * soc * salvagePrice; // Value of leftover energy
+      const deviation = soc - startSoC;
+      // Quadratic penalty to encourage return to initial state
+      // Positive deviation (excess energy) has value, negative has cost
+      if (deviation > 0) {
+        // Excess energy valued at discharge efficiency * reference price
+        V[T][i] = etaD * deviation * referencePrice * 0.8; // 80% of reference
+      } else {
+        // Energy deficit costs at charge efficiency * reference price
+        V[T][i] = deviation * referencePrice / etaC * 1.2; // 120% of reference
+      }
     }
   }
 
@@ -88,6 +101,13 @@ function optimiseBESS_DP({
         const socNextIdx = i + k;
         const socNextVal = V[t + 1][socNextIdx];
         if (socNextVal <= -1e14) continue; // infeasible terminal path
+        
+        // TODO: Ramp rate constraint would be enforced here
+        // if (rampRateMW !== null && t > 0) {
+        //   const prevK = action[t-1][i];
+        //   const rampMW = Math.abs((k - prevK) * dE / dtHours);
+        //   if (rampMW > rampRateMW) continue; // Skip if violates ramp rate
+        // }
 
         let reward = 0.0;
         if (k > 0) {
@@ -303,29 +323,40 @@ function calibrateThroughputCost(prices, targetCycles, dpArgs) {
 
 /**
  * Clean and validate price data
+ * @param {Array} prices - Raw price data
+ * @param {Object} options - Processing options
+ * @param {boolean} options.clamp - Whether to clamp prices to market limits (default: false)
+ * @param {boolean} options.despike - Whether to apply median filter (default: false)
  */
-function cleanPrices(prices) {
+function cleanPrices(prices, options = {}) {
+  const { clamp = false, despike = false } = options;
   const FLOOR = -1000;
   const CAP = 16600;
   
-  // Clamp to market limits and remove spikes
-  const cleaned = prices.map(p => {
+  // First pass: handle nulls and NaNs
+  let cleaned = prices.map(p => {
     if (p === null || isNaN(p)) return 0;
-    return Math.max(FLOOR, Math.min(CAP, p));
+    if (clamp) {
+      return Math.max(FLOOR, Math.min(CAP, p));
+    }
+    return p;
   });
   
   // Optional: 3-point median filter for de-spiking
-  const filtered = new Array(cleaned.length);
-  for (let i = 0; i < cleaned.length; i++) {
-    if (i === 0 || i === cleaned.length - 1) {
-      filtered[i] = cleaned[i];
-    } else {
-      const window = [cleaned[i-1], cleaned[i], cleaned[i+1]].sort((a,b) => a-b);
-      filtered[i] = window[1]; // median
+  if (despike) {
+    const filtered = new Array(cleaned.length);
+    for (let i = 0; i < cleaned.length; i++) {
+      if (i === 0 || i === cleaned.length - 1) {
+        filtered[i] = cleaned[i];
+      } else {
+        const window = [cleaned[i-1], cleaned[i], cleaned[i+1]].sort((a,b) => a-b);
+        filtered[i] = window[1]; // median
+      }
     }
+    return filtered;
   }
   
-  return filtered;
+  return cleaned;
 }
 
 /**

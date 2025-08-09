@@ -354,7 +354,8 @@ async function analyzeOpportunity() {
             
             const optimizationMode = document.getElementById('optimizationMode').value;
             const throughputCost = parseFloat(document.getElementById('throughputCost').value) || 0;
-            const tariffId = document.getElementById('tariff').value;
+            const siteMode = document.getElementById('siteMode').value;
+            const tariffId = siteMode === 'BtM' ? document.getElementById('tariff').value : 'NONE';
             const tariff = TARIFFS[tariffId];
             
             let dayResult;
@@ -659,13 +660,17 @@ function calculateDPArbitrage(data, efficiency, maxCycles, totalCapacity, totalP
         standingCharge = tariff.standing_per_year / 365;
     }
     
-    // Calculate demand charges ($/kVA/month pro-rated)
+    // Calculate demand charges ($/kVA/month)
+    // NOTE: Demand charges are based on monthly peak, not daily
+    // For single-day analysis, we show the monthly charge impact
+    // In reality, this peak may be set by other days in the month
     if (tariff && tariff.demand_per_kva_month) {
         const powerFactor = 0.95;  // Assumed power factor
         Object.keys(peakDemand).forEach(period => {
             const peakKVA = (peakDemand[period] * 1000) / powerFactor;  // Convert MW to kVA
             const monthlyCharge = peakKVA * (tariff.demand_per_kva_month.import[period] || 0);
-            demandCharges += monthlyCharge / 30;  // Daily pro-rata
+            // Show as indicative daily impact (1/30th) but note this is not how billing works
+            demandCharges += monthlyCharge / 30;  // Indicative daily allocation
         });
     }
     
@@ -728,6 +733,12 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
     
     // Find and sort opportunities by profitability
     const opportunities = findBestArbitrageOpportunities(data, efficiency, maxCycles, totalCapacity, totalPower);
+    
+    // TODO: Validate feasibility of selected opportunities
+    // Currently assumes opportunities don't overlap, but should verify:
+    // - SoC constraints are satisfied throughout
+    // - Power limits are respected
+    // - Selected opportunities are mutually feasible
     
     // Execute the trading strategy
     let revenue = 0;
@@ -852,22 +863,26 @@ function calculateMultiCycleArbitrage(data, efficiency, maxCycles, totalCapacity
     const avgChargePrice = totalChargeEnergy > 0 ? weightedChargePrice / totalChargeEnergy : 0;
     const avgDischargePrice = totalDischargeEnergy > 0 ? weightedDischargePrice / totalDischargeEnergy : 0;
     
-    // Calculate the effective spread (this is what you actually make per MWh traded)
-    // FIX: Correct efficiency accounting
-    const effectiveSpread = avgDischargePrice * efficiency - avgChargePrice;
+    // Calculate the effective spread (energy-weighted average)
+    // This is the average selling price minus average buying price
+    const effectiveSpread = avgDischargePrice - avgChargePrice;
     
     // Calculate standing charge (pro-rated per day)
     if (tariff && tariff.standing_per_year > 0) {
         standingCharge = tariff.standing_per_year / 365;
     }
     
-    // Calculate demand charges ($/kVA/month pro-rated)
+    // Calculate demand charges ($/kVA/month)
+    // NOTE: Demand charges are based on monthly peak, not daily
+    // For single-day analysis, we show the monthly charge impact
+    // In reality, this peak may be set by other days in the month
     if (tariff && tariff.demand_per_kva_month) {
         const powerFactor = 0.95;  // Assumed power factor
         Object.keys(peakDemand).forEach(period => {
             const peakKVA = (peakDemand[period] * 1000) / powerFactor;  // Convert MW to kVA
             const monthlyCharge = peakKVA * (tariff.demand_per_kva_month.import[period] || 0);
-            demandCharges += monthlyCharge / 30;  // Daily pro-rata
+            // Show as indicative daily impact (1/30th) but note this is not how billing works
+            demandCharges += monthlyCharge / 30;  // Indicative daily allocation
         });
     }
     
@@ -1640,3 +1655,22 @@ function updateResultsTable(results) {
     totalRow.insertCell(3).textContent = '-';
     totalRow.insertCell(4).textContent = results.totalEnergy.toFixed(1) + ' MWh';
 }
+
+// Site mode change handler
+document.addEventListener('DOMContentLoaded', function() {
+    const siteModeSelect = document.getElementById('siteMode');
+    const tariffSelect = document.getElementById('tariff');
+    
+    if (siteModeSelect && tariffSelect) {
+        siteModeSelect.addEventListener('change', function() {
+            if (this.value === 'FoM') {
+                // Front-of-meter: disable tariff and set to NONE
+                tariffSelect.disabled = true;
+                tariffSelect.value = 'NONE';
+            } else {
+                // Behind-the-meter: enable tariff selection
+                tariffSelect.disabled = false;
+            }
+        });
+    }
+});

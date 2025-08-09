@@ -3,166 +3,296 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lé Tool - Connection Test</title>
+    <title>Lé Tool - Acceptance Tests</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+            background: #000;
+            color: #00E87E;
             padding: 20px;
-            background: #1a1a1a;
-            color: #fff;
+            max-width: 1200px;
+            margin: 0 auto;
         }
-        .test {
-            margin: 20px 0;
+        h1 {
+            border-bottom: 2px solid #00E87E;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            background: #111;
+            border: 1px solid #00E87E;
+            border-radius: 8px;
             padding: 15px;
-            border: 2px solid #333;
+            margin: 20px 0;
+        }
+        .test-name {
+            font-weight: bold;
+            margin-bottom: 10px;
+            font-size: 1.2em;
+        }
+        .test-pass {
+            color: #00E87E;
+        }
+        .test-fail {
+            color: #ff4444;
+        }
+        .test-result {
+            margin: 5px 0;
+            padding: 5px;
+            border-left: 3px solid;
+        }
+        .test-result.pass {
+            border-color: #00E87E;
+        }
+        .test-result.fail {
+            border-color: #ff4444;
+        }
+        #summary {
+            font-size: 1.3em;
+            margin-top: 30px;
+            padding: 20px;
+            background: #111;
             border-radius: 8px;
         }
-        .success { border-color: #00E87E; background: rgba(0,232,126,0.1); }
-        .error { border-color: #ff4444; background: rgba(255,68,68,0.1); }
-        .pending { border-color: #ffc107; background: rgba(255,193,7,0.1); }
-        h1 { color: #00E87E; }
         button {
             background: #00E87E;
             color: #000;
             border: none;
             padding: 10px 20px;
+            font-size: 1.1em;
             border-radius: 5px;
-            font-size: 16px;
             cursor: pointer;
-            margin: 10px 5px;
+            margin: 10px 0;
         }
-        button:hover { background: #00FF8C; }
-        pre {
-            background: #000;
-            padding: 10px;
-            border-radius: 5px;
-            overflow-x: auto;
+        button:hover {
+            background: #00C96A;
         }
     </style>
 </head>
 <body>
-    <h1>🔧 Lé Tool - Deployment Test</h1>
+    <h1>Lé Tool - Acceptance Tests</h1>
     
-    <div class="test pending" id="basic">
-        <h3>Basic Page Load</h3>
-        <p>Status: <span id="basicStatus">Testing...</span></p>
-    </div>
+    <button onclick="runTests()">Run All Tests</button>
+    
+    <div id="test-results"></div>
+    <div id="summary"></div>
 
-    <div class="test pending" id="api">
-        <h3>API Connection</h3>
-        <p>Status: <span id="apiStatus">Testing...</span></p>
-        <pre id="apiResponse"></pre>
-    </div>
-
-    <div class="test pending" id="price">
-        <h3>Price Data API</h3>
-        <p>Status: <span id="priceStatus">Testing...</span></p>
-        <pre id="priceResponse"></pre>
-    </div>
-
-    <div class="test pending" id="scripts">
-        <h3>External Scripts</h3>
-        <p>Chart.js: <span id="chartStatus">Loading...</span></p>
-        <p>Date-fns: <span id="dateStatus">Loading...</span></p>
-    </div>
-
-    <div class="test pending" id="console">
-        <h3>Console Errors</h3>
-        <pre id="consoleErrors">No errors detected</pre>
-    </div>
-
-    <button onclick="runTests()">Run Tests Again</button>
-    <button onclick="window.location.href='index.html'">Go to Main App</button>
-
+    <!-- Load the optimizer -->
+    <script src="dp-optimizer.js"></script>
+    
     <script>
-        let errors = [];
-        
-        // Capture console errors
-        window.onerror = function(msg, url, lineNo, columnNo, error) {
-            errors.push(`${msg} at ${url}:${lineNo}:${columnNo}`);
-            document.getElementById('consoleErrors').textContent = errors.join('\n');
-            document.getElementById('console').className = 'test error';
-            return false;
-        };
+        let passedTests = 0;
+        let failedTests = 0;
+        let testResults = [];
 
-        async function runTests() {
-            errors = [];
+        function assert(condition, message) {
+            const result = {
+                passed: condition,
+                message: message
+            };
+            testResults.push(result);
             
-            // Test 1: Basic page load
-            document.getElementById('basic').className = 'test success';
-            document.getElementById('basicStatus').textContent = '✅ Page loaded successfully';
-            
-            // Test 2: API Connection
-            try {
-                const response = await fetch('/api/test');
-                const data = await response.json();
-                document.getElementById('api').className = 'test success';
-                document.getElementById('apiStatus').textContent = '✅ API working';
-                document.getElementById('apiResponse').textContent = JSON.stringify(data, null, 2);
-            } catch (e) {
-                document.getElementById('api').className = 'test error';
-                document.getElementById('apiStatus').textContent = '❌ API failed';
-                document.getElementById('apiResponse').textContent = e.toString();
-            }
-            
-            // Test 3: Price Data
-            try {
-                const response = await fetch('/api/price?region=VIC1&date=2025-08-08');
-                const data = await response.json();
-                document.getElementById('price').className = 'test success';
-                document.getElementById('priceStatus').textContent = `✅ Got ${data.dataPoints || 0} price points`;
-                document.getElementById('priceResponse').textContent = JSON.stringify({
-                    success: data.success,
-                    source: data.source,
-                    dataPoints: data.dataPoints,
-                    region: data.region
-                }, null, 2);
-            } catch (e) {
-                document.getElementById('price').className = 'test error';
-                document.getElementById('priceStatus').textContent = '❌ Price API failed';
-                document.getElementById('priceResponse').textContent = e.toString();
-            }
-            
-            // Test 4: External Scripts
-            if (typeof Chart !== 'undefined') {
-                document.getElementById('chartStatus').textContent = '✅ Loaded';
+            if (condition) {
+                passedTests++;
             } else {
-                document.getElementById('chartStatus').textContent = '❌ Not loaded';
-                document.getElementById('scripts').className = 'test error';
+                failedTests++;
             }
-            
-            if (typeof dateFns !== 'undefined') {
-                document.getElementById('dateStatus').textContent = '✅ Loaded';
-            } else {
-                document.getElementById('dateStatus').textContent = '❌ Not loaded';
-                document.getElementById('scripts').className = 'test error';
-            }
-            
-            if (typeof Chart !== 'undefined' && typeof dateFns !== 'undefined') {
-                document.getElementById('scripts').className = 'test success';
-            }
-            
-            // Test 5: Console errors
-            if (errors.length === 0) {
-                document.getElementById('console').className = 'test success';
-            }
+            return condition;
         }
-        
-        // Load external scripts
-        const chartScript = document.createElement('script');
-        chartScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.js';
-        chartScript.onload = () => runTests();
-        document.head.appendChild(chartScript);
-        
-        const dateScript = document.createElement('script');
-        dateScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/date-fns/2.29.3/index.min.js';
-        dateScript.onload = () => runTests();
-        document.head.appendChild(dateScript);
-        
-        // Run tests on load
-        window.addEventListener('load', runTests);
+
+        function assertClose(actual, expected, tolerance, message) {
+            const diff = Math.abs(actual - expected);
+            const passed = diff <= tolerance;
+            assert(passed, `${message} (expected: ${expected}±${tolerance}, actual: ${actual})`);
+        }
+
+        function displayResults() {
+            const resultsDiv = document.getElementById('test-results');
+            const summaryDiv = document.getElementById('summary');
+            
+            let html = '';
+            let currentSection = '';
+            
+            testResults.forEach(result => {
+                if (result.section && result.section !== currentSection) {
+                    if (currentSection) html += '</div>';
+                    currentSection = result.section;
+                    html += `<div class="test-section">`;
+                    html += `<div class="test-name">${currentSection}</div>`;
+                }
+                
+                const passClass = result.passed ? 'pass' : 'fail';
+                const icon = result.passed ? '✓' : '✗';
+                html += `<div class="test-result ${passClass}">`;
+                html += `<span class="${result.passed ? 'test-pass' : 'test-fail'}">${icon}</span> `;
+                html += result.message;
+                html += '</div>';
+            });
+            
+            if (currentSection) html += '</div>';
+            resultsDiv.innerHTML = html;
+            
+            const total = passedTests + failedTests;
+            const percentage = total > 0 ? Math.round((passedTests / total) * 100) : 0;
+            
+            summaryDiv.innerHTML = `
+                <h2>Test Summary</h2>
+                <div class="${failedTests === 0 ? 'test-pass' : 'test-fail'}">
+                    Passed: ${passedTests} / ${total} (${percentage}%)
+                </div>
+                ${failedTests === 0 ? 
+                    '<div class="test-pass">✓ All tests passed!</div>' : 
+                    `<div class="test-fail">✗ ${failedTests} test(s) failed</div>`}
+            `;
+        }
+
+        function runTests() {
+            passedTests = 0;
+            failedTests = 0;
+            testResults = [];
+            
+            // Test 1: Cyclic operation
+            testResults.push({ section: 'Test 1: Cyclic Operation' });
+            {
+                const prices = new Array(288).fill(50);
+                for (let i = 72; i < 108; i++) prices[i] = 20;
+                for (let i = 216; i < 252; i++) prices[i] = 100;
+                
+                const result = optimiseBESS_DP({
+                    prices,
+                    capacityMWh: 100,
+                    powerMW: 50,
+                    etaC: 0.95,
+                    etaD: 0.95,
+                    soc0: 0.5,
+                    throughputCost: 5
+                });
+                
+                const initialSoC = 50;
+                const finalSoC = result.socSeries[result.socSeries.length - 1];
+                
+                assertClose(finalSoC, initialSoC, 10, 'Final SoC returns near initial');
+                assert(result.revenue > 0, 'Positive revenue generated');
+                assert(result.cycles > 0 && result.cycles < 2, 'Reasonable cycle count');
+            }
+            
+            // Test 2: Monotone cycles
+            testResults.push({ section: 'Test 2: Monotone Cycles' });
+            {
+                const prices = new Array(288).fill(50);
+                for (let i = 72; i < 108; i++) prices[i] = 20;
+                for (let i = 216; i < 252; i++) prices[i] = 100;
+                
+                const result1 = optimiseBESS_DP({
+                    prices,
+                    capacityMWh: 100,
+                    powerMW: 50,
+                    throughputCost: 0
+                });
+                
+                const result2 = optimiseBESS_DP({
+                    prices,
+                    capacityMWh: 100,
+                    powerMW: 50,
+                    throughputCost: 10
+                });
+                
+                const result3 = optimiseBESS_DP({
+                    prices,
+                    capacityMWh: 100,
+                    powerMW: 50,
+                    throughputCost: 20
+                });
+                
+                assert(result1.cycles >= result2.cycles, 'Higher cost reduces cycles');
+                assert(result2.cycles >= result3.cycles, 'Even higher cost reduces cycles more');
+                assert(result1.revenue >= result2.revenue, 'Higher cost reduces revenue');
+            }
+            
+            // Test 3: Constraint satisfaction
+            testResults.push({ section: 'Test 3: Constraint Satisfaction' });
+            {
+                const prices = new Array(288).fill(50);
+                prices[100] = 200;
+                prices[101] = -50;
+                
+                const capacityMWh = 100;
+                const powerMW = 25;
+                
+                const result = optimiseBESS_DP({
+                    prices,
+                    capacityMWh,
+                    powerMW
+                });
+                
+                let violations = 0;
+                for (let i = 0; i < result.socSeries.length; i++) {
+                    const soc = result.socSeries[i];
+                    if (soc < -0.001 || soc > capacityMWh + 0.001) {
+                        violations++;
+                    }
+                }
+                assert(violations === 0, 'No SoC constraint violations');
+                
+                let powerViolations = 0;
+                for (let i = 0; i < result.flows.length; i++) {
+                    const flow = result.flows[i];
+                    const power = Math.max(flow.buyMWh, flow.sellMWh) / (5/60);
+                    if (power > powerMW + 0.001) {
+                        powerViolations++;
+                    }
+                }
+                assert(powerViolations === 0, 'No power constraint violations');
+            }
+            
+            // Test 4: Price cleaning
+            testResults.push({ section: 'Test 4: Price Cleaning' });
+            {
+                const rawPrices = [50, 100, 20000, -2000, null, NaN, 75, 80];
+                
+                const cleaned1 = cleanPrices(rawPrices);
+                assert(cleaned1[2] === 20000, 'Raw mode preserves high prices');
+                assert(cleaned1[3] === -2000, 'Raw mode preserves negative prices');
+                assert(cleaned1[4] === 0, 'Nulls converted to 0');
+                assert(cleaned1[5] === 0, 'NaNs converted to 0');
+                
+                const cleaned2 = cleanPrices(rawPrices, { clamp: true });
+                assert(cleaned2[2] === 16600, 'Clamp mode caps high prices');
+                assert(cleaned2[3] === -1000, 'Clamp mode floors negative prices');
+                
+                const cleaned3 = cleanPrices(rawPrices, { despike: true });
+                assert(cleaned3[2] !== 20000, 'Despike smooths outliers');
+            }
+            
+            // Test 5: Efficiency model
+            testResults.push({ section: 'Test 5: Efficiency Model' });
+            {
+                const prices = new Array(288).fill(50);
+                prices[100] = 20;
+                prices[200] = 100;
+                
+                const result = optimiseBESS_DP({
+                    prices,
+                    capacityMWh: 100,
+                    powerMW: 50,
+                    etaC: 0.95,
+                    etaD: 0.92
+                });
+                
+                let chargeCount = 0;
+                let dischargeCount = 0;
+                
+                for (const flow of result.flows) {
+                    if (flow.op === 'charge') chargeCount++;
+                    if (flow.op === 'discharge') dischargeCount++;
+                }
+                
+                assert(chargeCount > 0, 'Charge operations occur');
+                assert(dischargeCount > 0, 'Discharge operations occur');
+                assert(result.avgChargePrice < result.avgDischargePrice, 'Buy low, sell high');
+            }
+            
+            displayResults();
+        }
     </script>
 </body>
 </html>
